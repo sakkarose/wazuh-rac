@@ -1,0 +1,53 @@
+<group name="Cephalus,ransomware,malware,">
+
+<!-- Malware creates encryption key file -->
+  <rule id="100331" level="12">
+    <if_sid>61613</if_sid>
+    <field name="win.eventdata.image" type="pcre2">\.exe</field>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)[C-Z]:\\\\Windows\\\\Temp\\\\encrypted_key.bin$</field>
+    <description>File $(win.eventdata.targetFilename) created. Potential Cephalus ransomware detected.</description>
+    <mitre>
+      <id>T1047</id>
+    </mitre>
+  </rule>
+
+<!-- Malware creates staging file -->
+  <rule id="100332" level="12">
+    <if_sid>61613</if_sid>
+    <field name="win.eventdata.image" type="pcre2">\.exe</field>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)[C-Z]:\\\\Users\\\\Public\\\\Documents\\\\.system_cache$</field>
+    <description>File $(win.eventdata.targetFilename) created. Potential Cephalus ransomware detected.</description>
+    <mitre>
+      <id>T1047</id>
+    </mitre>
+  </rule>
+
+<!-- Malware creates ransom note file -->
+  <rule id="100333" level="12" timeframe="100" frequency="2">
+    <if_sid>61613</if_sid>
+    <field name="win.eventdata.image" type="pcre2">\.exe</field>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)[C-Z]:.*.\\recover.txt</field>
+    <description>File $(win.eventdata.targetFilename) has been created in multiple directories. Potential Cephalus ransomware detected.</description>
+    <mitre>
+      <id>T1059</id>
+    </mitre>
+  </rule>
+
+<!-- Malware inhibits system recovery -->
+  <rule id="100334" level="12">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.CommandLine" type="pcre2">(?i)vssadmin\sdelete\sshadows\s\/all\s\/quiet</field>
+    <description>Volume shadow copy deleted using $(win.eventdata.originalFileName). Potential ransomware activity detected.</description>
+    <mitre>
+      <id>T1490</id>
+    </mitre>
+  </rule>
+
+<!-- Malware encrypts files across the system by appending .sss extension -->  
+  <rule id="100335" level="10">
+    <if_sid>550,554</if_sid>
+    <field name="File" type="pcre2">\.sss$</field>
+    <description>File created with .sss extension. Potential Cephalus ransomware encryption activity detected.</description>
+  </rule>
+  
+</group>

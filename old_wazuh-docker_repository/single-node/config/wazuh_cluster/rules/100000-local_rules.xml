@@ -1,0 +1,203 @@
+<!-- Local rules -->
+
+<!-- Modify it at your will. -->
+<!-- Copyright (C) 2015, Wazuh Inc. -->
+
+<!-- YARA Provisioning -->
+<!-- File added to the Downloads folder -->
+
+<group name= "syscheck,">
+  <rule id="100001" level="7">
+    <if_sid>550</if_sid>
+    <field name="file" type="pcre2">(?i)C:\\Users.+Downloads</field>
+    <description>File modified in the Downloads folder.</description>
+  </rule>
+<!-- File modified in the Downloads folder -->
+  <rule id="100002" level="7">
+    <if_sid>554</if_sid>
+    <field name="file" type="pcre2">(?i)C:\\Users.+Downloads</field>
+    <description>File added to the Downloads folder.</description>
+  </rule>
+</group>
+
+<!--  Rule for the decoder (yara_decoder) -->
+<group name="yara,">
+  <rule id="100003" level="0">
+    <decoded_as>yara_decoder</decoded_as>
+    <description>Yara grouping rule</description>
+  </rule>
+<!--  YARA scan detects a positive match -->
+  <rule id="100004" level="12">
+    <if_sid>100003</if_sid>
+    <match type="pcre2">wazuh-yara: INFO - Scan result: </match>
+    <description>Yara scan result: File "$(yara_scanned_file)" is a positive match. Yara rule: $(yara_rule)</description>
+  </rule> 
+  <rule id="100005" level="12">
+    <if_sid>100003</if_sid>
+    <match type="pcre2">wazuh-yara: INFO - Successfully deleted: </match>
+    <description>Active Response: Successfully removed "$(yara_scanned_file)". YARA rule: $(yara_rule)</description>
+  </rule>
+<!--  Wazuh encounters an error when deleting malware with a positive match -->
+  <rule id="100006" level="12">
+    <if_sid>100003</if_sid>
+    <match type="pcre2">wazuh-yara: INFO - Error removing threat: </match>
+    <description>Active Response: Error removing "$(yara_scanned_file)". YARA rule: $(yara_rule)</description>
+  </rule>
+</group>
+
+<!-- VSS Ransomware Restore -->
+<group name="ransomware,ransomware_rollback,">
+  <rule id="100007" level="5">
+    <field name="rollback_status">completed</field>
+    <description>Wazuh_Ransomware_Protection: Files restored successfully.</description>
+  </rule>
+</group>
+
+<group name="virustotal,">
+  <rule id="100008" level="12">
+      <if_sid>657</if_sid>
+      <match>Successfully removed threat</match>
+      <description>$(parameters.program) removed threat located at $(parameters.alert.data.virustotal.source.file)</description>
+  </rule>
+
+  <rule id="100009" level="12">
+    <if_sid>657</if_sid>
+    <match>Error removing threat</match>
+    <description>Error removing threat located at $(parameters.alert.data.virustotal.source.file)</description>
+  </rule>
+</group>
+
+<!-- Linux Sysmon -->
+<group name="linux,sysmon,">
+
+  <rule id="100010" level="1">
+    <decoded_as>sysmon-linux</decoded_as>
+    <field name="system.eventId">\.+</field>
+    <options>no_full_log</options>
+    <description>Sysmon For Linux Event</description>
+    <mitre>
+      <id>T1204</id>
+    </mitre>
+    <group>sysmon_event</group>
+  </rule>
+
+<!--EventID = 1-->
+  <rule id="100011" level="1">
+    <if_sid>100010</if_sid>
+    <field name="system.eventId">^1$</field>
+    <options>no_full_log</options>
+    <description>Sysmon - Event 1: Process creation $(eventdata.image)</description>
+    <mitre>
+      <id>T1204</id>
+    </mitre>
+    <group>sysmon_event1</group>
+  </rule>
+
+<!--EventID = 3-->
+  <rule id="100012" level="1">
+    <if_sid>100010</if_sid>
+    <field name="system.eventId">^3$</field>
+    <options>no_full_log</options>
+    <description>Sysmon - Event 3: Network connection by $(eventdata.image)</description>
+    <group>sysmon_event3</group>
+  </rule>
+
+<!--EventID = 5-->
+  <rule id="100013" level="1">
+    <if_sid>100010</if_sid>
+    <field name="system.eventId">^5$</field>
+    <options>no_full_log</options>
+    <description>Sysmon - Event 5: Process terminated $(eventdata.image)</description>
+    <mitre>
+      <id>T1204</id>
+    </mitre>
+    <group>sysmon_event5</group>
+  </rule>
+
+<!--EventID = 9-->
+  <rule id="100014" level="1">
+    <if_sid>100010</if_sid>
+    <field name="system.eventId">^9$</field>
+    <options>no_full_log</options>
+    <description>Sysmon - Event 9: Raw Access Read by $(eventdata.image)</description>
+    <mitre>
+      <id>T1204</id>
+    </mitre>
+    <group>sysmon_event9</group>
+  </rule>
+
+<!--EventID = 11-->
+  <rule id="100015" level="1">
+    <if_sid>100010</if_sid>
+    <field name="system.eventId">^11$</field>
+    <options>no_full_log</options>
+    <description>Sysmon - Event 11: FileCreate by $(eventdata.image)</description>
+    <group>sysmon_event_11</group>
+  </rule>
+
+<!--EventID = 16-->
+  <rule id="100016" level="1">
+    <if_sid>100010</if_sid>
+    <field name="system.eventId">^16$</field>
+    <options>no_full_log</options>
+    <description>Sysmon - Event 16: Sysmon config state changed $(Event.EventData.Data.Configuration)</description>
+    <mitre>
+      <id>T1562</id>
+    </mitre>
+    <group>sysmon_event_16</group>
+  </rule>
+
+<!--EventID = 23-->
+  <rule id="100017" level="1">
+    <if_sid>100010</if_sid>
+    <field name="system.eventId">^23$</field>
+    <options>no_full_log</options>
+    <description>Sysmon - Event 23: FileDelete (A file delete was detected) by $(eventdata.image)</description>
+    <mitre>
+      <id>T1485</id>
+    </mitre>
+    <group>sysmon_event_23</group>
+  </rule>
+  
+<!--Overrides-->
+<!--EventID = 3. No alerts for events if Image = /var/ossec/bin/wazuh-agentd-->
+  <rule id="100018" level="1">
+    <if_sid>100012</if_sid>
+    <field name="eventdata.image">wazuh-agentd$</field>
+    <options>no_full_log</options>
+    <description>Sysmon - Event 3: Network connection by $(eventdata.image)</description>
+    <group>sysmon_event3</group>
+  </rule>
+
+<!--EventID = 11. No alerts for events if Image = /var/ossec/bin/wazuh-agentd-->
+  <rule id="100019" level="1">
+    <if_sid>100015</if_sid>
+    <field name="eventdata.image">wazuh-agentd$</field>
+    <options>no_full_log</options>
+    <description>Sysmon - Event 11: FileCreate by $(eventdata.image)</description>
+    <group>sysmon_event_11</group>
+  </rule>
+
+<!--EventID = 23. No alerts for events if Image = /var/ossec/bin/wazuh-agentd-->
+  <rule id="100020" level="1">
+    <if_sid>100017</if_sid>
+    <field name="eventdata.image">wazuh-agentd$</field>
+    <options>no_full_log</options>
+    <description>Sysmon - Event 23: FileDelete (A file delete was detected) by $(eventdata.image)</description>
+    <mitre>
+      <id>T1485</id>
+    </mitre>
+    <group>sysmon_event_23</group>
+  </rule>
+</group>
+
+<!-- CCMC Compliance - Account Brute Force -->
+<group name="pam,syslog,">
+  <rule id="100021" level="10" frequency="5" timeframe="120">
+    <if_matched_sid>5503</if_matched_sid>
+    <description>Possible password guess on $(dstuser): five failed logins in a short period of time</description>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+</group>

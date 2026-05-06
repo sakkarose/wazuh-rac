@@ -1,0 +1,95 @@
+<group name="brain_cipher, ransomware,">
+
+<!-- Brain Cipher ransomware loaded -->
+  <rule id="100173" level="12">
+    <if_sid>61609</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)[C-Z]:.*\.exe</field>
+    <field name="win.eventdata.hashes" type="pcre2">(?i)SHA256=EB82946FA0DE261E92F8F60AA878C9FEF9EBB34FDABABA66995403B110118B12|0080EC82DA326F6BEBCAB521F2C4F79BAFB09E5D0EEA3BE39CA8A2BD6EF9AA8B|7D67C8711B4CAD0F585604FF3F9F8F40359E4F8E1524E152F50159B0F56D0952|27A3CC834C1CD00AD5378C373D76957998BB54BBCFE67BBF3AE5C7BE5A5A66DD|6e07da23603fbe5b26755df5b8fec19cadf1f7001b1558ea4f12e20271263417</field>
+    <description>Brain Cipher ransomware executable loaded. Brain Cipher ransomware detected.</description>
+  </rule>
+
+<!-- Local Security Authority Subsystem Service accessed -->
+  <rule id="100174" level="12">
+    <if_sid>61612</if_sid>
+    <field name="win.eventdata.sourceImage" type="pcre2">.*\.exe</field>
+    <field name="win.eventdata.targetImage" type="pcre2">(?i)[C-Z]:\\\\Windows\\\\system32\\\\lsass.exe</field>
+    <description>The process $(win.eventdata.targetImage) has been accessed by $(win.eventdata.sourceImage). Possible credential dumping detected.</description>
+    <mitre>
+      <id>T1003</id>
+      <id>T1003.001</id>
+    </mitre>
+  </rule>
+  
+<!-- Volume Shadow copy Service (VSS) deletion -->
+  <rule id="100175" level="12">
+    <if_sid>61614,61615</if_sid>
+    <field name="win.eventdata.eventType" type="pcre2">DeleteKey</field>
+    <field name="win.eventdata.targetObject" type="pcre2">HKLM\\\\System\\\\CurrentControlSet\\\\Services\\\\VSS$</field>
+    <description>Volume Shadow copy Service (VSS) $(win.eventdata.targetObject) deleted. Possible ransomware activity detected.</description>
+    <mitre>
+      <id>T1562</id>
+      <id>T1562.002</id>
+    </mitre>
+  </rule>
+
+<!-- Ransom note file creation -->
+  <rule id="100176" level="15" timeframe="100" frequency="2">
+    <if_sid>61613</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)[C-Z]:.*\\\\.*.exe</field>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)[C-Z]:.*.sYMY1N6ah.README.txt</field>
+    <description>Brain Cipher ransom note $(win.eventdata.targetFilename) has been created in multiple directories. Possible Brain Cipher ransomware detected.</description>
+    <mitre>
+      <id>T1486</id>
+    </mitre>
+  </rule>
+
+<!-- DNS Query by Brain Cipher executable -->
+  <rule id="100177" level="12">
+    <if_sid>61650</if_sid>
+    <field name="win.eventdata.image" type="pcre2">.*\.exe</field>
+    <field name="win.eventdata.queryName" type="pcre2">_ldap\._tcp\.dc\._msdcs\.[A-Za-z0-9\-]+</field>
+    <description>Potential malicious activity detected. DNS query by $(win.eventdata.image).</description>
+    <mitre>
+      <id>T1071</id> 
+      <id>T1071.004</id>
+    </mitre>
+  </rule>
+
+<!-- Antimalware Scan Interface Debugging Channel Access Modification -->
+  <rule id="100178" level="12">
+    <if_sid>61615</if_sid>
+    <field name="win.eventdata.targetObject" type="pcre2">HKLM\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\WINEVT\\\\Channels\\\\AMSI\/Debug\\\\ChannelAccess</field>
+    <field name="win.eventdata.details" type="pcre2">O:BAG:SYD:\(A;;0x1;;;SY\)\(A;;0x5;;;BA\)\(A;;0x1;;;LA\)$</field>
+    <description>Registry modification detected for AMSI Debugging Channel Access. Possible tampering or evasion attempt.</description>
+    <mitre>
+      <id>T1562</id>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+
+<!-- Microsoft-Windows-Servicing Channel Access Modification -->
+  <rule id="100179" level="12">
+    <if_sid>61615</if_sid>
+    <field name="win.eventdata.targetObject" type="pcre2">HKLM\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\WINEVT\\\\Channels\\\\Microsoft-Windows-Servicing\/Debug\\\\ChannelAccess</field>
+    <field name="win.eventdata.details" type="pcre2">O:BAG:SYD:\(A;;0x1;;;SY\)\(A;;0x5;;;BA\)\(A;;0x1;;;LA\)$</field>
+    <description>Registry modification detected for Microsoft-Windows-Servicing Channel Access. Possible tampering with event logging channels detected.</description>
+    <mitre>
+      <id>T1562</id>
+      <id>T1562.002</id>
+    </mitre>
+  </rule>
+
+<!-- Microsoft-Windows-UAC Channel Access Modification -->
+  <rule id="100180" level="12">
+    <if_sid>61615</if_sid>
+    <field name="win.eventdata.targetObject" type="pcre2">HKLM\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\WINEVT\\\\Channels\\\\Microsoft-Windows-UAC\/Operational\\\\ChannelAccess</field>
+    <field name="win.eventdata.details" type="pcre2">O:BAG:SYD:\(A;;0x1;;;SY\)\(A;;0x5;;;BA\)\(A;;0x1;;;LA\)$</field>
+    <description>Registry modification detected for User Account Control (UAC) Channel Access.</description>
+    <mitre>
+      <id>T1562</id>
+      <id>T1562.002</id>
+    </mitre>
+  </rule>
+    
+</group>

@@ -1,0 +1,48 @@
+<group name="tetragon,">
+  <rule id="100306" level="1">
+    <decoded_as>tetragon</decoded_as>
+    <description>Tetragon events grouped.</description>
+  </rule>
+
+  <rule id="100307" level="5">
+    <if_sid>100306</if_sid>
+    <field name="process_exec.process.exec_id">\.*</field>
+    <description>The process "$(process_exec.process.binary)" has been executed.</description>
+    <mitre>
+      <id>T1059</id>
+    </mitre>
+    <group>process_exec,</group>
+  </rule>
+
+  <rule id="100308" level="5">
+    <if_sid>100306</if_sid>
+    <field name="process_exit.process.exec_id">\.*</field>
+    <description>The process "$(process_exit.process.binary)" has exited.</description>
+    <mitre>
+      <id>T1489</id>
+    </mitre>
+    <group>process_exit,</group>
+  </rule>
+
+  <rule id="100309" level="5">
+    <if_sid>100306</if_sid>
+    <field name="process_kprobe.process.exec_id">\.*</field>
+    <description>Kernel event detected.</description>
+    <mitre>
+      <id>T1547.006</id>
+    </mitre>
+    <group>process_kprobe,</group>
+  </rule>
+</group>
+
+<group name="tetragon,">
+  <rule id="100310" level="9">
+    <if_sid>100309</if_sid>
+    <field name="family">AF_INET|AF_INET6</field>
+    <description>Outbound connection to "$(dstip)" on port "$(dstport)" detected.</description>
+    <mitre>
+      <id>T1049</id>
+      <id>T1041</id>
+    </mitre>
+  </rule>
+</group>

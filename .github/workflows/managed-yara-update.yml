@@ -1,0 +1,43 @@
+name: Update YARA rules
+
+on:
+  schedule:
+    - cron: '0 21 * * *' # At 21:00 UTC (4:00 AM GMT+7)
+  workflow_dispatch: # Allow manual triggering of the workflow
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo content
+        uses: actions/checkout@v2
+
+      - name: setup python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12.2'
+
+      - name: List directory contents
+        working-directory: ./single-node/config/wazuh_endpoint/windows/yara
+        run: ls -la
+
+      - name: install python packages
+        working-directory: ./single-node/config/wazuh_endpoint/windows/yara
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: execute py script
+        run: python .github/scripts/download_yara_rules.py
+
+      - name: commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet && echo "No changes to commit" || (
+            git add ./single-node/config/wazuh_endpoint/windows/yara/yara_rules.yar
+            git commit -m "Daily YARA rules fetching"
+            git push
+          )
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

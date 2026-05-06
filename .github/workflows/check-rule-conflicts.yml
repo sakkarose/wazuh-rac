@@ -1,0 +1,24 @@
+name: Check Wazuh rule conflicts
+
+on:
+  schedule:
+    - cron: '0 22 * * *'  # Run daily at midnight UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  check-rule-ids:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Required for git history
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Run rule ID conflict checker
+        run: python .github/scripts/check_rule_ids_all.py

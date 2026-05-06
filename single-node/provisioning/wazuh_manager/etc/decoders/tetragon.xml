@@ -1,0 +1,38 @@
+<decoder name="tetragon">
+  <program_name>^tetragon-events</program_name>
+</decoder>
+
+<decoder name="tetragon-args">
+  <parent>tetragon</parent>
+  <regex type="pcre2">process_kprobe.*args.*"family":"([\w\s]+)"</regex>
+  <order>family</order>
+</decoder>
+
+<decoder name="tetragon-args">
+  <parent>tetragon</parent>
+  <regex>process_kprobe\.*args\.*"saddr":"(\d+.\d+.\d+.\d+)"</regex>
+  <order>srcip</order>
+</decoder>
+
+<decoder name="tetragon-args">
+  <parent>tetragon</parent>
+  <regex>process_kprobe\.*args\.*"sport":(\d+)</regex>
+  <order>srcport</order>
+</decoder>
+
+<decoder name="tetragon-args">
+  <parent>tetragon</parent>
+  <regex>process_kprobe\.*args\.*"daddr":"(\d+.\d+.\d+.\d+)"</regex>
+  <order>dstip</order>
+</decoder>
+
+<decoder name="tetragon-args">
+  <parent>tetragon</parent>
+  <regex>process_kprobe\.*args\.*"dport":(\d+)</regex>
+  <order>dstport</order>
+</decoder>
+
+<decoder name="tetragon-args">
+  <parent>tetragon</parent>
+  <plugin_decoder>JSON_Decoder</plugin_decoder>
+</decoder>

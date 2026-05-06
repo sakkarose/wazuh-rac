@@ -1,0 +1,4 @@
+# Koske Rootkit Signatures
+/dev/shm/.hiddenpid     ! Koske rootkit: Hidden PID file for process concealment ::
+/etc/ld.so.preload      ! Koske rootkit: Potential LD_PRELOAD manipulation for library hooking ::
+/root/.bashrc.koske     ! Koske rootkit: Modified bash config for persistence ::

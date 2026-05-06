@@ -1,0 +1,50 @@
+<group name="doge_big_balls,ransomware,">
+  <rule id="100181" level="10">
+    <if_sid>61613</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)[C-Z]:.*\\\\.*.exe</field>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)[C-Z]:.*.\\\\DbgLog.sys</field>
+    <description>A log file $(win.eventdata.targetFilename) was created to log the output of the reconnaissance activities of the DOGE Big Balls ransomware. Suspicious activity detected.</description>
+    <mitre>
+      <id>T1486</id>
+    </mitre>
+  </rule>
+
+  <rule id="100182" level="8" timeframe="300" frequency="2">  
+    <if_sid>61603</if_sid>  
+    <list field="win.eventdata.commandLine" lookup="match_key">etc/lists/ransomware_doge-big-balls</list>  
+    <description>The command $(win.eventdata.commandLine) is executed for reconnaissance activities. Suspicious activity detected.</description>  
+    <options>no_full_log</options>  
+  </rule>
+
+<!-- Ransom note file creation -->
+  <rule id="100183" level="15" timeframe="300" frequency="2">
+    <if_sid>61613</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)[C-Z]:.*\\\\.*.exe</field>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)[C-Z]:.*.\\\\readme.txt</field>
+    <description>DOGE Big Balls ransom note $(win.eventdata.targetFilename) has been created in multiple directories. Possible DOGE Big Balls ransomware detected.</description>
+    <mitre>
+      <id>T1486</id>
+    </mitre>
+  </rule>
+
+  <rule id="100184" level="15" timeframe="300" frequency="2" ignore="100">
+    <if_matched_sid>100181</if_matched_sid>
+    <if_sid>100182</if_sid>
+    <description>Possible DOGE Big Balls ransomware detected.</description>
+    <mitre>
+      <id>T1486</id>
+    </mitre>
+  </rule>
+
+  <rule id="100185" level="13">
+    <if_sid>554,550</if_sid>
+    <list field="sha256" lookup="match_key">etc/lists/ransomware_doge-big-balls</list>
+    <description>A known DOGE Big Balls ransomware hash detected: $(file)</description>
+    <mitre>
+      <id>T1204.002</id>
+    </mitre>
+    <options>no_full_log</options>
+  </rule>
+
+</group>
+

@@ -1,0 +1,9 @@
+<decoder name="mariadatabase-decoder">
+    <program_name>mariadb-server_auditing</program_name>
+</decoder>
+
+<decoder name="mariadatabase-syslog">
+    <parent>mariadatabase-decoder</parent>
+    <regex type="pcre2">^(\S+)\s+(\S+),([^,]*),([^,]*),(\d+),(\d+),([^,]*),([^,]*),(.*),(\d*)$</regex>
+    <order>mariadb.info,mariadb.serverhost,mariadb.username,mariadb.userhost,mariadb.connectionid,mariadb.queryid,mariadb.operation,mariadb.database,mariadb.object,mariadb.retcode</order>
+</decoder>

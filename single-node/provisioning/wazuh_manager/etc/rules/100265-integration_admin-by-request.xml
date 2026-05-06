@@ -1,0 +1,65 @@
+<group name="adminbyrequest,">
+<!-- Detects denied privilege elevation activities --> 
+  <rule id="100265" level="10">
+    <if_sid>60601</if_sid>
+    <field name="win.system.providerName" type="pcre2">\bAdmin By Request\b</field>
+    <field name="win.system.severityValue" type="pcre2">WARNING</field>
+    <field name="win.system.message" type="pcre2">(?i).*denied.*</field>
+    <description>ABR: $(win.system.message)</description>
+    <mitre>
+      <id>T1548</id>
+    </mitre>
+  </rule>
+
+<!-- Detects multiple denied privilege elevation activities -->
+  <rule id="100266" level="10" frequency="5" timeframe="300" >
+    <if_matched_sid>100265</if_matched_sid>
+    <description>ABR: Multiple privilege elevation requests denied</description>
+    <mitre>
+      <id>T1548</id>
+    </mitre>
+  </rule>
+
+<!-- Detects privilege elevation requests -->
+  <rule id="100267" level="2">
+    <if_sid>60600</if_sid>
+    <field name="win.system.providerName" type="pcre2">\bAdmin By Request\b</field>
+    <field name="win.system.message" type="pcre2">(?i)Received elevation approval reply</field>
+    <description>ABR: Privilege elevation request.</description>
+    <mitre>
+      <id>T1548.002</id>
+    </mitre>
+  </rule>
+
+<!-- Detects multiple privilege elevation requests -->
+  <rule id="100268" level="8" frequency="5" timeframe="300" >
+    <if_matched_sid>100267</if_matched_sid>
+    <field name="win.system.message" type="pcre2">(?i)Received elevation approval reply</field>
+    <description>ABR: Multiple privilege elevation requests in 5 minutes</description>
+    <mitre>
+      <id>T1548.002</id>
+    </mitre>
+  </rule>
+
+<!-- Detects when a user is added to the local admin group -->
+  <rule id="100269" level="8" >
+    <if_sid>60600</if_sid>
+    <field name="win.system.providerName" type="pcre2">\bAdmin By Request\b</field>
+    <field name="win.eventdata.data" type="pcre2">(?i).* added to local administrators group</field>
+    <description>ABR: $(win.eventdata.data)</description>
+    <mitre>
+      <id>T1136.001</id>
+    </mitre>
+  </rule>
+
+<!-- Detects when a user is removed from the local admin group -->
+  <rule id="100270" level="5" >
+    <if_sid>60600</if_sid>
+    <field name="win.system.providerName" type="pcre2">\bAdmin By Request\b</field>
+    <field name="win.eventdata.data" type="pcre2">(?i).* removed from local admins group</field>
+    <description>ABR: $(win.eventdata.data)</description>
+    <mitre>
+      <id>T1098</id>
+    </mitre>
+  </rule>
+</group>

@@ -1,0 +1,14 @@
+net  config Workstation:
+systeminfo:
+hostname:
+net  users:
+ipconfig  /all:
+route  print:
+arp  -A:
+netstat  -ano:
+netsh firewall show state:
+netsh firewall show config:
+schtasks  /query /fo LIST /v:
+tasklist  /SVC:
+net  start:
+DRIVERQUERY:
