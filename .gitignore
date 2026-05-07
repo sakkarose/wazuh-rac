@@ -17,3 +17,5 @@ multi-node/config/wazuh*
 
 # Documentation
 docs/book/
+
+wazuh-5.0.0-beta1/
