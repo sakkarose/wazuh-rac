@@ -9,13 +9,17 @@ mounted at `/wazuh-config-mount` into that tree during startup. The
 `wazuh_manager/etc/wazuh-manager.conf` becomes
 `/var/wazuh-manager/etc/wazuh-manager.conf`.
 
-The migrated indexer and dashboard files are mounted directly by
+The migrated indexer users and dashboard files are mounted directly by
 `docker-compose.yml`:
 
-- `wazuh_indexer/opensearch.yml`
 - `wazuh_indexer/internal_users.yml`
 - `wazuh_dashboard/opensearch_dashboards.yml`
 - `wazuh_dashboard/wazuh.yml`
+
+`wazuh_indexer/opensearch.yml` is kept as a migration reference only. The v5
+indexer entrypoint edits its own `opensearch.yml` at startup, so bind-mounting
+that file can prevent the entrypoint from replacing it and can reintroduce
+settings removed from OpenSearch 3.x.
 
 Certificates are not migrated from the v4 repository. Generate fresh v5
 certificates with the documented single-node certificate workflow before
