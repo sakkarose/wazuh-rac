@@ -19,3 +19,4 @@ multi-node/config/wazuh*
 docs/book/
 
 wazuh-5.0.0-beta1/
+wazuh-docker-5.0.0-beta1/
