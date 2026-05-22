@@ -6,7 +6,7 @@ on:
     inputs:
       image_tag:
         description: 'Docker image tag'
-        default: '5.0.0-beta1'
+        default: 'v5.0.0-beta2'
         required: true
       docker_reference:
         description: 'wazuh-docker reference'
@@ -14,7 +14,7 @@ on:
       wazuh_automation_reference:
         description: 'Branch or tag of the wazuh-automation repository'
         required: false
-        default: 'v5.0.0-beta1'
+        default: 'v5.0.0-beta2'
       products:
         description: 'Comma-separated list of the image names to build and push'
         default: 'wazuh-manager,wazuh-dashboard,wazuh-indexer,wazuh-agent'
@@ -42,7 +42,7 @@ on:
     inputs:
       image_tag:
         description: 'Docker image tag'
-        default: '5.0.0-beta1'
+        default: 'v5.0.0-beta2'
         required: true
         type: string
       docker_reference:
@@ -52,7 +52,7 @@ on:
       wazuh_automation_reference:
         description: 'Branch or tag of the wazuh-automation repository'
         required: false
-        default: 'v5.0.0-beta1'
+        default: 'v5.0.0-beta2'
         type: string
       products:
         description: 'Comma-separated list of the image names to build and push'
@@ -90,6 +90,7 @@ jobs:
     outputs:
       WAZUH_COMPONENTS: ${{ steps.compute-outputs.outputs.WAZUH_COMPONENTS }}
       COMMIT_LIST: ${{ steps.compute-outputs.outputs.COMMIT_LIST }}
+      ALL_PRODUCTS_SELECTED: ${{ steps.compute-outputs.outputs.ALL_PRODUCTS_SELECTED }}
 
     steps:
     - name: Print inputs
@@ -115,24 +116,22 @@ jobs:
     - name: Set up variables
       id: compute-outputs
       run: |
-        # Set WAZUH_COMPONENTS
-        WC_JSON_ARRAY=""
-        if [[ "${{ inputs.products }}" != "null" && "${{ inputs.products }}" != "" ]]; then
-          # Convert comma-separated list to JSON array format
-          IFS=',' read -ra COMPONENTS <<< "${{ inputs.products }}"
-          WC_JSON_ARRAY="["
-          for i in "${!COMPONENTS[@]}"; do
-            if [ $i -gt 0 ]; then
-              WC_JSON_ARRAY+=","
-            fi
-            WC_JSON_ARRAY+="\"${COMPONENTS[$i]}\""
-          done
-          WC_JSON_ARRAY+="]"
-        else
-          WC_JSON_ARRAY='["wazuh-manager","wazuh-dashboard","wazuh-indexer","wazuh-agent"]'
+        # Use the default list if products is empty
+        PRODUCTS="${{ inputs.products }}"
+        if [[ -z "$PRODUCTS" || "$PRODUCTS" == "null" ]]; then
+          PRODUCTS="wazuh-manager,wazuh-dashboard,wazuh-indexer,wazuh-agent"
         fi
-        echo "Products to build: $WC_JSON_ARRAY"
-        echo "WAZUH_COMPONENTS=$WC_JSON_ARRAY" >> $GITHUB_OUTPUT
+        # Check if all 4 core components are present in the string
+        if [[ "$PRODUCTS" == *"wazuh-manager"* && "$PRODUCTS" == *"wazuh-dashboard"* && "$PRODUCTS" == *"wazuh-indexer"* && "$PRODUCTS" == *"wazuh-agent"* ]]; then
+          echo "ALL_PRODUCTS_SELECTED=true" >> $GITHUB_OUTPUT
+        else
+          echo "ALL_PRODUCTS_SELECTED=false" >> $GITHUB_OUTPUT
+        fi
+        # Set WAZUH_COMPONENTS
+        # Convert to JSON for the matrix (Your existing logic)
+        IFS=',' read -ra COMPONENTS <<< "$PRODUCTS"
+        JSON_ARRAY=$(printf '%s\n' "${COMPONENTS[@]}" | jq -R . | jq -s -c .)
+        echo "WAZUH_COMPONENTS=$JSON_ARRAY" >> $GITHUB_OUTPUT
 
         # Set COMMIT_LIST
         WC_COMMIT_LIST=""
@@ -234,6 +233,11 @@ jobs:
           source ${{ env.WORKFLOW_VENV }}/bin/activate
           WAZUH_COMPONENTS='${{ needs.setup.outputs.WAZUH_COMPONENTS }}'
           COMMIT_LIST='${{ needs.setup.outputs.COMMIT_LIST }}'
+          SCRIPT_PARAMS="--process ${{ env.PRESIGNED_URLS_SCRIPT_PROCESS }} \
+                            --wazuh-version ${{ env.WAZUH_VERSION }} \
+                            --aws-s3-bucket-dev ${{ env.LOCAL_AWS_S3_BUCKET_DEV }} \
+                            --assistant-revision $ASSISTANT_REVISION "
+
 
           # Parse components and their revisions
           COMPONENTS=($(echo "$WAZUH_COMPONENTS" | jq -r '.[]'))
@@ -252,29 +256,22 @@ jobs:
           for i in "${!COMPONENTS[@]}"; do
           case "${COMPONENTS[$i]}" in
             wazuh-manager)
-            MANAGER_REVISION="${REVISIONS[$i]}"
+            SCRIPT_PARAMS+="--manager-revision ${REVISIONS[$i]} "
             ;;
             wazuh-dashboard)
-            DASHBOARD_REVISION="${REVISIONS[$i]}"
+            SCRIPT_PARAMS+="--dashboard-revision ${REVISIONS[$i]} "
             ;;
             wazuh-indexer)
-            INDEXER_REVISION="${REVISIONS[$i]}"
+            SCRIPT_PARAMS+="--indexer-revision ${REVISIONS[$i]} "
             ;;
             wazuh-agent)
-            AGENT_REVISION="${REVISIONS[$i]}"
+            SCRIPT_PARAMS+="--agent-revision ${REVISIONS[$i]} "
             ;;
           esac
           done
 
           python ${{ env.GENERATE_PRESIGNED_URLS_SCRIPT_PATH }} \
-              --process ${{ env.PRESIGNED_URLS_SCRIPT_PROCESS }} \
-              --wazuh-version ${{ env.WAZUH_VERSION }} \
-              --aws-s3-bucket-dev ${{ env.LOCAL_AWS_S3_BUCKET_DEV }} \
-              --indexer-revision   $INDEXER_REVISION \
-              --manager-revision   $MANAGER_REVISION \
-              --dashboard-revision $DASHBOARD_REVISION \
-              --agent-revision     $AGENT_REVISION \
-              --assistant-revision $ASSISTANT_REVISION
+              $SCRIPT_PARAMS
 
       - name: Save presigned URLs file to artifact
         if: ${{ inputs.dev == true }}
@@ -366,6 +363,7 @@ jobs:
               -d $DEV_STAGE \
               -rg $IMAGE_REGISTRY \
               -m \
+              --dev \
               -refs "$COMPONENT_REFS_JSON" \
               -c ${{ matrix.wazuh_component }}
           else
@@ -382,6 +380,7 @@ jobs:
               -v $IMAGE_TAG \
               -rg $IMAGE_REGISTRY \
               -m \
+              --dev \
               -refs "$COMPONENT_REFS_JSON" \
               -c ${{ matrix.wazuh_component }}
           else
@@ -405,11 +404,19 @@ jobs:
         fi
       working-directory: ./build-docker-images
 
+
+  notify:
+    runs-on: ubuntu-22.04
+    needs: [setup, build-and-push]
+    # Only run if NOT dev AND all products were selected
+    if: ${{ inputs.dev == false && needs.setup.outputs.ALL_PRODUCTS_SELECTED == 'true' }}
+
+    steps:
     - name: Image exists validation
-      if: ${{ inputs.dev == false }}
       id: validation
       run: |
         IMAGE_TAG=${{ inputs.image_tag }}
+        IMAGE_REGISTRY="${{ vars.IMAGE_REGISTRY_PROD }}"
         PURPOSE=""
 
         if [[ "$IMAGE_TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -431,12 +438,15 @@ jobs:
         echo "purpose=$PURPOSE" >> $GITHUB_OUTPUT
 
     - name: GH issue notification
-      if: ${{ inputs.dev == false && steps.validation.outputs.purpose != '' }}
+      if: ${{ steps.validation.outputs.purpose != '' }}
+      env:
+        GH_TOKEN: ${{ secrets.NOTIFICATION_GH_ARTIFACT_TOKEN }}
       run: |
         IMAGE_TAG=${{ inputs.image_tag }}
+        PURPOSE="${{ steps.validation.outputs.purpose }}"
+
         GH_TITLE=""
         GH_MESSAGE=""
-        PURPOSE="${{ steps.validation.outputs.purpose }}"
 
         ## Setting GH issue title
         GH_TITLE="Artifactory vulnerabilities update \`v$IMAGE_TAG\`"
@@ -487,6 +497,3 @@ jobs:
           gh project item-edit --id $PROJECT_ITEM_ID --project-id ${{ secrets.NOTIFICATION_PROJECT_ID }} --field-id ${{ secrets.NOTIFICATION_PROJECT_SIZE_ID }} --single-select-option-id ${{ secrets.NOTIFICATION_PROJECT_SIZE_OPTION_ID }}
           ## Setting Subteam
           gh project item-edit --id $PROJECT_ITEM_ID --project-id ${{ secrets.NOTIFICATION_PROJECT_ID }} --field-id ${{ secrets.NOTIFICATION_PROJECT_SUBTEAM_ID }} --single-select-option-id ${{ secrets.NOTIFICATION_PROJECT_SUBTEAM_OPTION_ID }}
-
-      env:
-        GH_TOKEN: ${{ secrets.NOTIFICATION_GH_ARTIFACT_TOKEN }}

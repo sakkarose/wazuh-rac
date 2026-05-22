@@ -4,6 +4,7 @@ permissions:
   id-token: write
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
     inputs:
       docker_reference:
@@ -14,6 +15,7 @@ on:
 jobs:
 
   prepare-variables:
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     outputs:
       WAZUH_VERSION: ${{ steps.dotenv.outputs.WAZUH_VERSION }}
@@ -44,7 +46,7 @@ jobs:
     with:
       image_tag: ${{ needs.prepare-variables.outputs.WAZUH_IMAGE_VERSION }}
       docker_reference: ${{ github.head_ref || inputs.docker_reference }}
-      wazuh_automation_reference: 'v5.0.0-beta1'
+      wazuh_automation_reference: 'v5.0.0-beta2'
       commit_list: '["latest", "latest", "latest", "latest"]'
       assistant_revision: 'latest'
       id: ${{ github.run_id }}
@@ -76,7 +78,7 @@ jobs:
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Execute Goss tests (wazuh-manager)
-      run: dgoss run ${{ env.WAZUH_REGISTRY }}/wazuh/wazuh-manager:${{ env.WAZUH_IMAGE_VERSION }}
+      run: dgoss run ${{ env.WAZUH_REGISTRY }}/wazuh/wazuh-manager:${{ env.WAZUH_IMAGE_VERSION }}-latest
       env:
         GOSS_SLEEP: 30
         GOSS_FILE: .github/.goss.yaml
@@ -88,7 +90,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm]
       fail-fast: false
-    needs: [prepare-variables, Execute-Goss-tests, build-images]
+    needs: [prepare-variables, Execute-Goss-tests]
     env:
       WAZUH_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.WAZUH_IMAGE_VERSION }}
       WAZUH_MINOR_VERSION: ${{ needs.prepare-variables.outputs.WAZUH_MINOR_VERSION }}
@@ -162,6 +164,7 @@ jobs:
         if [ -f "$TARGET_FILE" ]; then
           echo "Updating registry in $TARGET_FILE to: ${{ env.WAZUH_REGISTRY }}"
           sed -i "s|wazuh/wazuh-|${{ env.WAZUH_REGISTRY }}/wazuh/wazuh-|g" "$TARGET_FILE"
+          sed -i "s/\(.*wazuh\/wazuh-.*:\)${{ env.WAZUH_IMAGE_VERSION }}/\1${{ env.WAZUH_IMAGE_VERSION }}-latest/g" "$TARGET_FILE"
         else
           echo "File $TARGET_FILE not found"
           exit 1
@@ -284,6 +287,7 @@ jobs:
         if [ -f "$TARGET_FILE" ]; then
           echo "Updating registry in $TARGET_FILE to: ${{ env.WAZUH_REGISTRY }}"
           sed -i "s|wazuh/wazuh-|${{ env.WAZUH_REGISTRY }}/wazuh/wazuh-|g" "$TARGET_FILE"
+          sed -i "s/\(.*wazuh\/wazuh-.*:\)${{ env.WAZUH_IMAGE_VERSION }}/\1${{ env.WAZUH_IMAGE_VERSION }}-latest/g" "$TARGET_FILE"
         else
           echo "File $TARGET_FILE not found"
           exit 1
@@ -361,7 +365,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-22.04-arm]
       fail-fast: false
-    needs: [prepare-variables, Execute-Goss-tests, build-images]
+    needs: [prepare-variables, Execute-Goss-tests]
     env:
       WAZUH_IMAGE_VERSION: ${{ needs.prepare-variables.outputs.WAZUH_IMAGE_VERSION }}
       WAZUH_MINOR_VERSION: ${{ needs.prepare-variables.outputs.WAZUH_MINOR_VERSION }}
@@ -441,6 +445,7 @@ jobs:
         if [ -f "$TARGET_FILE" ]; then
           echo "Updating registry in $TARGET_FILE to: ${{ env.WAZUH_REGISTRY }}"
           sed -i "s|wazuh/wazuh-|${{ env.WAZUH_REGISTRY }}/wazuh/wazuh-|g" "$TARGET_FILE"
+          sed -i "s/\(.*wazuh\/wazuh-.*:\)${{ env.WAZUH_IMAGE_VERSION }}/\1${{ env.WAZUH_IMAGE_VERSION }}-latest/g" "$TARGET_FILE"
         else
           echo "File $TARGET_FILE not found"
           exit 1
@@ -573,6 +578,7 @@ jobs:
         if [ -f "$TARGET_FILE" ]; then
           echo "Updating registry in $TARGET_FILE to: ${{ env.WAZUH_REGISTRY }}"
           sed -i "s|wazuh/wazuh-|${{ env.WAZUH_REGISTRY }}/wazuh/wazuh-|g" "$TARGET_FILE"
+          sed -i "s/\(.*wazuh\/wazuh-.*:\)${{ env.WAZUH_IMAGE_VERSION }}/\1${{ env.WAZUH_IMAGE_VERSION }}-latest/g" "$TARGET_FILE"
         else
           echo "File $TARGET_FILE not found"
           exit 1

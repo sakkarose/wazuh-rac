@@ -17,6 +17,7 @@ WAZUH_REGISTRY=docker.io
 WAZUH_IMAGE_VERSION="5.0.0"
 WAZUH_DEV_STAGE=""
 WAZUH_COMPONENTS_COMMIT_LIST=''
+IS_DEV_BUILD=""
 
 # -----------------------------------------------------------------------------
 
@@ -41,47 +42,75 @@ build() {
     WAZUH_MINOR_VERSION="${WAZUH_IMAGE_VERSION%.*}"
     # WAZUH_MAJOR_VERSION: Extracts major version only (e.g., 5.0.0 -> 5)
     WAZUH_MAJOR_VERSION="${WAZUH_IMAGE_VERSION%%.*}"
-    # WAZUH_STAGE: Extract the 'stage' (e.g., alpha0, beta1, rc2) from the local JSON metadata file.
+    # WAZUH_STAGE: Extract the 'stage' (e.g., alpha0, beta2, rc2) from the local JSON metadata file.
     # Note: This is primarily used for pre-release package naming.
     WAZUH_STAGE=$(jq -r '.stage' ../VERSION.json)
     # ARTIFACT_URLS_FILE: The name of the artifact URLs file.
     ARTIFACT_URLS_FILE="artifact_urls.yaml"
+    # ARTIFACT_URLS_DIR: The name of the artifact URLs directory.
+    ARTIFACT_URLS_DIR="artifact-urls"
 
     # Check if the artifact file already exists to prevent redundant downloads
     if [[ -f "$ARTIFACT_URLS_FILE" ]]; then
         echo "$ARTIFACT_URLS_FILE exists. Using existing file."
     else
-        # Prepare logic to fetch the artifact from Wazuh's infrastructure
+        # GitHub URL for exact Release Tag lookup
         TAG="v${WAZUH_IMAGE_VERSION}"
         REPO="wazuh/wazuh-docker"
         GH_URL="https://api.github.com/repos/${REPO}/releases/tags/${TAG}"
 
-        # Use GitHub API to check if the tag exists publicly.
-        # This determines if we should look for production or staging artifacts.
-        if curl -fsSL "$GH_URL" >/dev/null 2>&1; then
-            # CASE: Production (Tag exists in the official repository)
-            ARTIFACT_URLS_DOWNLOAD=artifact_urls_${WAZUH_IMAGE_VERSION}.yaml
-            PACKAGE_URL=packages.wazuh.com
-            RELEASE_STAGE=production
+        # Fetch the HTTP status code to determine release environment.
+        # Using -L to follow redirects (GitHub may return 301/302 for some endpoints).
+        HTTP_STATUS=$(curl -sL -o /dev/null -w "%{http_code}" "$GH_URL")
+
+        if [ "$HTTP_STATUS" -eq 200 ]; then
+            # CASE: Production (Tag and Release exist)
+            echo "Release $TAG found. Setting Production environment."
+            ARTIFACT_URLS_DOWNLOAD="artifact_urls_${WAZUH_IMAGE_VERSION}.yaml"
+            PACKAGE_URL="packages.wazuh.com"
+            RELEASE_STAGE="production"
+        elif [ "$HTTP_STATUS" -eq 403 ]; then
+            # CASE: GitHub API rate limit hit — fall back to pre-release to avoid
+            # incorrectly skipping staging artifacts.
+            echo "Warning: GitHub API rate limit reached (403). Assuming pre-release environment." >&2
+            PACKAGE_URL="packages-staging.xdrsiem.wazuh.info"
+            RELEASE_STAGE="pre-release"
+            if [ -n "$WAZUH_STAGE" ] && [ "$WAZUH_STAGE" != "null" ]; then
+                ARTIFACT_URLS_DOWNLOAD="artifact_urls_${WAZUH_IMAGE_VERSION}-${WAZUH_STAGE}.yaml"
+            else
+                ARTIFACT_URLS_DOWNLOAD="artifact_urls_${WAZUH_IMAGE_VERSION}.yaml"
+            fi
         else
-            # CASE: Pre-release/Staging (Tag not found, fall back to staging environment)
-            # Includes the WAZUH_STAGE suffix (e.g., artifact_urls_5.0.0-alpha0.yaml)
-            ARTIFACT_URLS_DOWNLOAD=artifact_urls_${WAZUH_IMAGE_VERSION}-${WAZUH_STAGE}.yaml
-            PACKAGE_URL=packages-staging.xdrsiem.wazuh.info
-            RELEASE_STAGE=pre-release
+            # CASE: Pre-release/Staging (404 Not Found or any other non-200 status)
+            echo "Release $TAG not found (HTTP status: $HTTP_STATUS). Setting Pre-release environment."
+            PACKAGE_URL="packages-staging.xdrsiem.wazuh.info"
+            RELEASE_STAGE="pre-release"
+            if [ -n "$WAZUH_STAGE" ] && [ "$WAZUH_STAGE" != "null" ]; then
+                ARTIFACT_URLS_DOWNLOAD="artifact_urls_${WAZUH_IMAGE_VERSION}-${WAZUH_STAGE}.yaml"
+            else
+                ARTIFACT_URLS_DOWNLOAD="artifact_urls_${WAZUH_IMAGE_VERSION}.yaml"
+            fi
         fi
-        echo "Attempting to download artifacts from: https://${PACKAGE_URL}/${RELEASE_STAGE}/${WAZUH_MAJOR_VERSION}.x/${ARTIFACT_URLS_DOWNLOAD}"
+
         # Final download using dynamic variables based on the release type.
         # Pattern: server / stage / major_version.x / filename
-        curl -fsSL -o "$ARTIFACT_URLS_FILE" "https://${PACKAGE_URL}/${RELEASE_STAGE}/${WAZUH_MAJOR_VERSION}.x/${ARTIFACT_URLS_DOWNLOAD}"
+        FULL_URL="https://${PACKAGE_URL}/${RELEASE_STAGE}/${WAZUH_MAJOR_VERSION}.x/${ARTIFACT_URLS_DIR}/${ARTIFACT_URLS_DOWNLOAD}"
+        echo "Attempting to download: $FULL_URL"
+        curl -fsSL -o "$ARTIFACT_URLS_FILE" "$FULL_URL" || {
+            echo "Error: Failed to download artifact URLs from $FULL_URL" >&2
+            clean 1
+        }
     fi
 
     awk -F':' '!/^#/ && NF>1 {name=$1; val=substr($0,length(name)+3); gsub(/[-.]/,"_",name); print name "=\"" val "\""}' $ARTIFACT_URLS_FILE > artifacts_env.txt
 
-    # Set component commit references for development builds
-    if [ -n "${WAZUH_DEV_STAGE}" ]; then
+    # Set component commit references for development builds.
+    # Commits are only resolved (and later appended to the image tag) when --dev is
+    # explicitly passed. Production and stage builds (dev=false) never include a
+    # commit suffix even if -refs is provided. Manual local builds also omit it.
+    if [ -n "${IS_DEV_BUILD}" ]; then
         if [ -z "${WAZUH_COMPONENTS_COMMIT_LIST}" ]; then
-            # Set default to 'latest' for all components if no specific references are provided
+            # Default to 'latest' for all components if no specific references are provided
             INDEXER_COMMIT="latest"
             MANAGER_COMMIT="latest"
             DASHBOARD_COMMIT="latest"
@@ -102,7 +131,6 @@ build() {
                 fi
 
                 # Set all component commits
-
                 INDEXER_COMMIT="$(printf '%s' "${WAZUH_COMPONENTS_COMMIT_LIST}" | jq -r '.[0]')"
                 MANAGER_COMMIT="$(printf '%s' "${WAZUH_COMPONENTS_COMMIT_LIST}" | jq -r '.[1]')"
                 DASHBOARD_COMMIT="$(printf '%s' "${WAZUH_COMPONENTS_COMMIT_LIST}" | jq -r '.[2]')"
@@ -138,52 +166,23 @@ build() {
     fi
 
 
-    # Function to get component-specific commit reference
-    get_component_commit() {
-        local component=$1
-        case "${component}" in
-            wazuh-indexer)
-                echo "${INDEXER_COMMIT}"
-                ;;
-            wazuh-manager)
-                echo "${MANAGER_COMMIT}"
-                ;;
-            wazuh-dashboard)
-                echo "${DASHBOARD_COMMIT}"
-                ;;
-            wazuh-agent)
-                echo "${AGENT_COMMIT}"
-                ;;
-            *)
-                echo ""
-                ;;
-        esac
-    }
-
-    # Global env file (without IMAGE_TAG - will be component-specific)
+    # Write the global .env file used by deployment compose files.
+    # IMAGE_TAG here reflects a non-dev, non-per-component tag for reference.
+    local base_tag="${WAZUH_IMAGE_VERSION}${WAZUH_DEV_STAGE:+-${WAZUH_DEV_STAGE,,}}"
     echo WAZUH_VERSION=$WAZUH_IMAGE_VERSION > ../.env
     echo WAZUH_IMAGE_VERSION=$WAZUH_IMAGE_VERSION >> ../.env
     echo WAZUH_REGISTRY=$WAZUH_REGISTRY >> ../.env
+    echo IMAGE_TAG=${base_tag} >> ../.env
 
     set -a
     source ../.env
     source ./artifacts_env.txt
     set +a
 
-    # Define all available components
-    local all_components=("wazuh-indexer" "wazuh-manager" "wazuh-dashboard" "wazuh-agent")
-    local components_to_build=()
-
-    # Determine which components to build
-    if [ -z "${WAZUH_COMPONENT}" ]; then
-        echo "No component specified. Building all components..."
-        components_to_build=("${all_components[@]}")
-    else
-        # Validate component
+    # Validate component if a specific one was requested.
+    if [ -n "${WAZUH_COMPONENT}" ]; then
         case "${WAZUH_COMPONENT}" in
-            wazuh-indexer|wazuh-manager|wazuh-dashboard|wazuh-agent)
-                components_to_build=("${WAZUH_COMPONENT}")
-                ;;
+            wazuh-indexer|wazuh-manager|wazuh-dashboard|wazuh-agent) ;;
             *)
                 echo "Error: Unknown component '${WAZUH_COMPONENT}'" >&2
                 clean 1
@@ -191,67 +190,51 @@ build() {
         esac
     fi
 
-    # Determine build command and base options
+    # Generate per-component image tags.
+    # The commit suffix is only appended when --dev is passed. This ensures:
+    #   dev=false, tag=5.0.0       → 5.0.0
+    #   dev=false, tag=5.0.0-beta2 → 5.0.0-beta2
+    #   dev=true,  tag=5.0.0       → 5.0.0-latest
+    #   dev=true,  tag=5.0.0-beta2 → 5.0.0-beta2-latest
+    make_tag() {
+        local commit=$1
+        if [ -n "${IS_DEV_BUILD}" ]; then
+            echo "${WAZUH_IMAGE_VERSION}${WAZUH_DEV_STAGE:+-${WAZUH_DEV_STAGE,,}}-${commit}"
+        else
+            echo "${base_tag}"
+        fi
+    }
+
+    export WAZUH_VERSION="$WAZUH_IMAGE_VERSION"
+    export MULTIARCH="${MULTIARCH}"
+    export INDEXER_TAG=$(make_tag   "${INDEXER_COMMIT:-latest}")
+    export MANAGER_TAG=$(make_tag   "${MANAGER_COMMIT:-latest}")
+    export DASHBOARD_TAG=$(make_tag "${DASHBOARD_COMMIT:-latest}")
+    export AGENT_TAG=$(make_tag     "${AGENT_COMMIT:-latest}")
+
+    echo "Image tags:"
+    echo "  wazuh-indexer:   ${WAZUH_REGISTRY}/wazuh/wazuh-indexer:${INDEXER_TAG}"
+    echo "  wazuh-manager:   ${WAZUH_REGISTRY}/wazuh/wazuh-manager:${MANAGER_TAG}"
+    echo "  wazuh-dashboard: ${WAZUH_REGISTRY}/wazuh/wazuh-dashboard:${DASHBOARD_TAG}"
+    echo "  wazuh-agent:     ${WAZUH_REGISTRY}/wazuh/wazuh-agent:${AGENT_TAG}"
+
+    # Bake options: --push for multi-arch (can't load multi-platform locally),
+    # --load for single-arch (stores image in local Docker daemon).
+    local bake_opts="--no-cache"
     if [ "${MULTIARCH}" ]; then
-        build_cmd="docker buildx build --platform linux/amd64,linux/arm64 --push --no-cache"
+        bake_opts="${bake_opts} --push"
     else
-        build_cmd="docker build --no-cache"
+        bake_opts="${bake_opts} --load"
     fi
 
-    # Build each component
-    for component in "${components_to_build[@]}"; do
-        echo "Building ${component} image..."
-
-        # Get component-specific commit reference
-        COMPONENT_COMMIT=$(get_component_commit "${component}")
-
-        # Generate component-specific IMAGE_TAG
-        IMAGE_TAG="${WAZUH_IMAGE_VERSION}${WAZUH_DEV_STAGE:+-${WAZUH_DEV_STAGE,,}-${COMPONENT_COMMIT}}"
-        echo "Using IMAGE_TAG: ${IMAGE_TAG} for ${component}"
-        export IMAGE_TAG="$IMAGE_TAG"
-
-        # Build common args (used by all components)
-        build_args=(
-            -t "${WAZUH_REGISTRY}/wazuh/${component}:${IMAGE_TAG}"
-            --build-arg WAZUH_VERSION="${WAZUH_IMAGE_VERSION}"
-        )
-
-        # Add component-specific args
-        case "${component}" in
-            wazuh-indexer)
-                build_args+=(
-                    --build-arg wazuh_indexer_x86_64_rpm="${wazuh_indexer_x86_64_rpm}"
-                    --build-arg wazuh_indexer_aarch64_rpm="${wazuh_indexer_aarch64_rpm}"
-                    --build-arg wazuh_certs_tool="${wazuh_certs_tool}"
-                    --build-arg wazuh_config_yml="${wazuh_config_yml}"
-                )
-                ;;
-            wazuh-manager)
-                build_args+=(
-                    --build-arg wazuh_manager_x86_64_rpm="${wazuh_manager_x86_64_rpm}"
-                    --build-arg wazuh_manager_aarch64_rpm="${wazuh_manager_aarch64_rpm}"
-                )
-                ;;
-            wazuh-dashboard)
-                build_args+=(
-                    --build-arg wazuh_dashboard_x86_64_rpm="${wazuh_dashboard_x86_64_rpm}"
-                    --build-arg wazuh_dashboard_aarch64_rpm="${wazuh_dashboard_aarch64_rpm}"
-                    --build-arg wazuh_certs_tool="${wazuh_certs_tool}"
-                    --build-arg wazuh_config_yml="${wazuh_config_yml}"
-                )
-                ;;
-            wazuh-agent)
-                build_args+=(
-                    --build-arg wazuh_agent_x86_64_rpm="${wazuh_agent_x86_64_rpm}"
-                    --build-arg wazuh_agent_aarch64_rpm="${wazuh_agent_aarch64_rpm}"
-                )
-                ;;
-        esac
-
-        # Execute build
-        $build_cmd "${build_args[@]}" ${component}/ || clean 1
-        echo "${component} image built successfully!"
-    done
+    # Build a specific component or the full default group (all 4 in parallel).
+    if [ -z "${WAZUH_COMPONENT}" ]; then
+        echo "Building all components in parallel..."
+        docker buildx bake ${bake_opts} -f docker-bake.hcl || clean 1
+    else
+        echo "Building ${WAZUH_COMPONENT}..."
+        docker buildx bake ${bake_opts} -f docker-bake.hcl "${WAZUH_COMPONENT}" || clean 1
+    fi
 
     echo ""
     echo "Image build process completed!"
@@ -265,8 +248,9 @@ help() {
     echo
     echo "Usage: $0 [OPTIONS]"
     echo
-    echo "    -d, --dev <ref>              [Optional] Set the development stage you want to build, example rc2 or beta1, not used by default."
-    echo "    -refs, --references <refs>   [Optional] [Only for Dev] JSON array of commit refs for components to be build (indexer, manager, dashboard, agent) in order. Defaults to latest."
+    echo "    -d, --dev-stage <ref>        [Optional] Set the pre-release stage suffix (e.g. beta2, rc2). Not used by default."
+    echo "    --dev                        [Optional] Mark as a development build: appends the commit ref to the image tag. Controlled by inputs.dev in the workflow."
+    echo "    -refs, --references <refs>   [Optional] [Only with --dev] JSON array of commit refs for components (indexer, manager, dashboard, agent) in order. Defaults to 'latest'."
     echo "    -rg, --registry <reg>        [Optional] Set the Docker registry to push the images."
     echo "    -c, --component <comp>       [Required] Set the Wazuh component to build. Accepted values: 'wazuh-indexer', 'wazuh-manager', 'wazuh-dashboard', 'wazuh-agent'."
     echo "    -v, --version <ver>          [Optional] Set the Wazuh version should be builded. By default, ${WAZUH_IMAGE_VERSION}."
@@ -285,13 +269,17 @@ main() {
         "-h"|"--help")
             help 0
             ;;
-        "-d"|"--dev")
+        "-d"|"--dev-stage")
             if [ -n "${2}" ]; then
                 WAZUH_DEV_STAGE="${2}"
                 shift 2
             else
                 help 1
             fi
+            ;;
+        "--dev")
+            IS_DEV_BUILD="true"
+            shift
             ;;
         "-m"|"--multiarch")
             MULTIARCH="true"
