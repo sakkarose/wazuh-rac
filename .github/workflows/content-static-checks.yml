@@ -1,0 +1,59 @@
+name: Content static checks
+
+on:
+  pull_request:
+    paths:
+      - 'single-node/provisioning/wazuh_manager/etc/**'
+      - 'single-node/provisioning/endpoint_assets/**'
+      - '.github/scripts/**'
+      - '.github/workflows/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'single-node/provisioning/wazuh_manager/etc/**'
+      - 'single-node/provisioning/endpoint_assets/**'
+      - '.github/scripts/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yara
+
+      - name: Python syntax
+        run: python -m py_compile .github/scripts/*.py
+
+      - name: XML fragment syntax
+        run: python .github/scripts/check_xml_fragments.py
+
+      - name: Rule ID conflicts
+        run: python .github/scripts/check_rule_ids_all.py
+
+      - name: Wazuh list references
+        run: python .github/scripts/check_wazuh_lists.py
+
+      - name: Decoder and rule lints
+        run: python .github/scripts/check_decoder_rule_lints.py
+
+      - name: Stale moved-path references
+        run: python .github/scripts/check_stale_paths.py
+
+      - name: YARA syntax
+        run: |
+          yara -w single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules_append.yar /dev/null
+          yara -w single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules.yar /dev/null

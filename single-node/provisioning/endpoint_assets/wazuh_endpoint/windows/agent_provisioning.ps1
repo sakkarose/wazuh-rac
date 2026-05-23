@@ -5,7 +5,7 @@ $scaPath = "C:\Program Files (x86)\sca_policies"
 
 $sysmonUrl = "https://download.sysinternals.com/files/Sysmon.zip"
 $yaraReleaseApi = "https://api.github.com/repos/VirusTotal/yara/releases/latest"
-$yararuleURL = "https://github.com/sakkarose/wazuh-docker/blob/main/single-node/config/wazuh_endpoint/windows/yara/yara_rules.yar"
+$yararuleURL = "https://raw.githubusercontent.com/sakkarose/wazuh-rac/main/single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules.yar"
 
 function Enable-PSLogging {
     # Define registry paths for ScriptBlockLogging and ModuleLogging

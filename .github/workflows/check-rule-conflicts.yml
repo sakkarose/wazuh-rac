@@ -2,7 +2,7 @@ name: Check Wazuh rule conflicts
 
 on:
   schedule:
-    - cron: '0 22 * * *'  # Run daily at midnight UTC
+    - cron: '0 22 * * *'  # Run daily at 22:00 UTC
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
@@ -11,12 +11,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Required for git history
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 

@@ -4,6 +4,8 @@ from pathlib import Path
 import sys
 from collections import defaultdict, Counter
 
+RULES_PATH = Path("single-node/provisioning/wazuh_manager/etc/rules")
+
 def run_git_command(args):
     result = subprocess.run(args, capture_output=True, text=True, check=True)
     return result.stdout
@@ -16,14 +18,12 @@ def get_changed_rule_files():
         output = run_git_command(["git", "diff", "--name-status", f"{last_run.strip()}...HEAD"])
         
         changed_files = []
-        rules_path = "single-node/config/wazuh_cluster/rules"
-        
         for line in output.strip().splitlines():
             parts = line.strip().split(maxsplit=1)
             if len(parts) != 2:
                 continue
             status, file_path = parts
-            if file_path.startswith(f"{rules_path}/") and file_path.endswith(".xml"):
+            if file_path.startswith(f"{RULES_PATH.as_posix()}/") and file_path.endswith(".xml"):
                 changed_files.append((status, Path(file_path)))
         return changed_files
     except subprocess.CalledProcessError as e:
@@ -31,16 +31,15 @@ def get_changed_rule_files():
         sys.exit(1)
 
 def extract_rule_ids_from_xml(content):
-
     ids = []
     try:
-            # Read file content if a Path or file object is passed
-            if not isinstance(content, str):
-                with open(content, 'r', encoding='utf-8') as f:
-                    content = f.read()
-            # Wrap in dummy root to allow multiple <group> elements
-            wrapped = f'<rules>\n{content}\n</rules>'
-            root = ET.fromstring(wrapped)
+        # Read file content if a Path or file object is passed
+        if not isinstance(content, str):
+            with open(content, 'r', encoding='utf-8') as f:
+                content = f.read()
+        # Wrap in dummy root to allow multiple <group> elements
+        wrapped = f'<rules>\n{content}\n</rules>'
+        root = ET.fromstring(wrapped)
         for rule in root.findall(".//rule"):
             rule_id = rule.get("id")
             if rule_id and rule_id.isdigit():
@@ -50,24 +49,9 @@ def extract_rule_ids_from_xml(content):
     return ids
 
 def get_all_rule_ids():
-
-    rules_path = Path("single-node/config/wazuh_cluster/rules")
     rule_id_to_files = defaultdict(set)
-    for xml_file in rules_path.glob("*.xml"):
-        try:
-            rule_ids = extract_rule_ids_from_xml(xml_file)
-            for rule_id in rule_ids:
-                rule_id_to_files[rule_id].add(xml_file.name)
-        except Exception as e:
-            print(f"⚠️ Error processing {xml_file}: {e}")
-            continue
-    return rule_id_to_files
 
-def get_all_rule_ids():
-    rules_path = Path("single-node/config/wazuh_cluster/rules")
-    rule_id_to_files = defaultdict(set)
-    
-    for xml_file in rules_path.glob("*.xml"):
+    for xml_file in RULES_PATH.glob("*.xml"):
         try:
             rule_ids = extract_rule_ids_from_xml(xml_file)
             for rule_id in rule_ids:

@@ -3,11 +3,17 @@ from valhallaAPI.valhalla import ValhallaAPI
 import os
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-yara_dir = os.path.abspath(os.path.join(script_dir, '../../single-node/config/wazuh_endpoint/windows/yara'))
+yara_dir = os.path.abspath(os.path.join(
+    script_dir,
+    '../../single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara'
+))
 os.chdir(yara_dir)
 
 # Initialize ValhallaAPI with the API key
-v = ValhallaAPI(api_key="1111111111111111111111111111111111111111111111111111111111111111")
+v = ValhallaAPI(api_key=os.environ.get(
+    "VALHALLA_API_KEY",
+    "1111111111111111111111111111111111111111111111111111111111111111"
+))
 
 # Get the YARA rules text
 response = v.get_rules_text()

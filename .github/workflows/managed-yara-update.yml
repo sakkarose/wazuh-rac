@@ -5,38 +5,50 @@ on:
     - cron: '0 21 * * *' # At 21:00 UTC (4:00 AM GMT+7)
   workflow_dispatch: # Allow manual triggering of the workflow
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - name: checkout repo content
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: setup python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.12.2'
 
       - name: List directory contents
-        working-directory: ./single-node/config/wazuh_endpoint/windows/yara
+        working-directory: ./single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara
         run: ls -la
 
       - name: install python packages
-        working-directory: ./single-node/config/wazuh_endpoint/windows/yara
+        working-directory: ./single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara
         run: |
+          sudo apt-get update
+          sudo apt-get install -y yara
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: execute py script
         run: python .github/scripts/download_yara_rules.py
+        env:
+          VALHALLA_API_KEY: ${{ secrets.VALHALLA_API_KEY }}
 
-      - name: commit and push changes
+      - name: Validate generated YARA rules
+        run: |
+          yara -w single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules_append.yar /dev/null
+          yara -w single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules.yar /dev/null
+
+      - name: Commit and push managed YARA rules
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git diff --quiet && echo "No changes to commit" || (
-            git add ./single-node/config/wazuh_endpoint/windows/yara/yara_rules.yar
-            git commit -m "Daily YARA rules fetching"
+          git add ./single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules.yar
+          git diff --cached --quiet && echo "No managed YARA changes to commit" || (
+            git commit -m "Daily managed YARA rules update"
             git push
           )
         env:

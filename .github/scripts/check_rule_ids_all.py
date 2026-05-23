@@ -1,7 +1,9 @@
 import xml.etree.ElementTree as ET
 from pathlib import Path
 import sys
-from collections import defaultdict, Counter
+from collections import defaultdict
+
+RULES_PATH = Path("single-node/provisioning/wazuh_manager/etc/rules")
 
 def extract_rule_ids_from_xml(content):
     ids = []
@@ -22,9 +24,8 @@ def extract_rule_ids_from_xml(content):
     return ids
 
 def get_all_rule_ids():
-    rules_path = Path("single-node/config/wazuh_cluster/rules")
     rule_id_to_files = defaultdict(set)
-    for xml_file in rules_path.glob("*.xml"):
+    for xml_file in RULES_PATH.glob("*.xml"):
         try:
             rule_ids = extract_rule_ids_from_xml(xml_file)
             for rule_id in rule_ids:
@@ -36,8 +37,7 @@ def get_all_rule_ids():
 
 def main():
     print("🔍 Checking all rule files for duplicate/conflicting rule IDs...")
-    rules_path = Path("single-node/config/wazuh_cluster/rules")
-    all_files = list(rules_path.glob("*.xml"))
+    all_files = list(RULES_PATH.glob("*.xml"))
     print(f"Found {len(all_files)} rule files:")
     for file in all_files:
         print(f"  • {file.name}")
