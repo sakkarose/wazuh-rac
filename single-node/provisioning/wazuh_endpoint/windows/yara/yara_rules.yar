@@ -1,14 +1,14 @@
 /*
     VALHALLA YARA RULE SET
-    Retrieved: 2026-05-29 08:01
+    Retrieved: 2026-05-29 22:24
     Generated for User: demo
     Number of Rules: 2823
     
     This is the VALHALLA demo rule set. The content represents the 'signature-base' repository in a streamlined format but lacks the rules provided by 3rd parties. All rules are licensed under CC-BY-NC https://creativecommons.org/licenses/by-nc/4.0/.
 */
 
-import "math"
 import "pe"
+import "math"
 
 rule EXPL_LNX_DirtyFrag_ForensicArtefacts_May26_RID36A9 : DEMO EXPLOIT LINUX {
    meta:
@@ -3811,7 +3811,7 @@ rule SUSP_Katz_Stealer_Log_May25_RID30F2 : DEMO LOG SUSP katzstealer {
 rule MAL_DLL_Chrome_App_Bound_Encryption_Decryption_May25_RID3AB1 : DEMO EXE FILE G1006 MAL {
    meta:
       description = "Detects a DLL used to decrypt App-Bound Encrypted (ABE) cookies, passwords & payment methods from Chromium-based browsers, seen being used by Kats stealer"
-      author = "MAlGamy"
+      author = "MalGamy"
       reference = "Internal Research"
       date = "2025-05-19 19:57:21"
       score = 80
