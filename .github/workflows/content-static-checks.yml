@@ -4,7 +4,7 @@ on:
   pull_request:
     paths:
       - 'single-node/provisioning/wazuh_manager/etc/**'
-      - 'single-node/provisioning/endpoint_assets/**'
+      - 'single-node/provisioning/wazuh_endpoint/**'
       - '.github/scripts/**'
       - '.github/workflows/**'
   push:
@@ -12,7 +12,7 @@ on:
       - main
     paths:
       - 'single-node/provisioning/wazuh_manager/etc/**'
-      - 'single-node/provisioning/endpoint_assets/**'
+      - 'single-node/provisioning/wazuh_endpoint/**'
       - '.github/scripts/**'
       - '.github/workflows/**'
   workflow_dispatch:
@@ -55,5 +55,5 @@ jobs:
 
       - name: YARA syntax
         run: |
-          yara -w single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules_append.yar /dev/null
-          yara -w single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules.yar /dev/null
+          yara -w single-node/provisioning/wazuh_endpoint/windows/yara/yara_rules_append.yar /dev/null
+          yara -w single-node/provisioning/wazuh_endpoint/windows/yara/yara_rules.yar /dev/null

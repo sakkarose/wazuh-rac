@@ -26,7 +26,7 @@ certificates with the documented single-node certificate workflow before
 starting Compose. The generated files live under `single-node/config/` and are
 already mounted by `docker-compose.yml`.
 
-`endpoint_assets/` preserves the remaining endpoint-side assets from the old
+`wazuh_endpoint/` preserves the remaining endpoint-side assets from the old
 repository. They are not mounted into the v5 containers by default because the
 old v4 compose file did not mount them into the Wazuh stack directly.
 

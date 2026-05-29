@@ -4,7 +4,7 @@ from pathlib import Path
 
 SEARCH_ROOTS = [
     Path(".github"),
-    Path("single-node/provisioning/endpoint_assets"),
+    Path("single-node/provisioning/wazuh_endpoint"),
 ]
 
 STALE_PATTERNS = [

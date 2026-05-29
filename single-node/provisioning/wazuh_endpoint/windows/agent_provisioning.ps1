@@ -1,11 +1,13 @@
 $ossecPath = "C:\Program Files (x86)\ossec-agent"
+$wazuhServiceName = "WazuhSvc"
 $sysmonPath = "$ossecPath\sysmon"
 $yaraPath = "$ossecPath\active-response\bin\yara"
 $scaPath = "C:\Program Files (x86)\sca_policies"
 
 $sysmonUrl = "https://download.sysinternals.com/files/Sysmon.zip"
 $yaraReleaseApi = "https://api.github.com/repos/VirusTotal/yara/releases/latest"
-$yararuleURL = "https://raw.githubusercontent.com/sakkarose/wazuh-rac/main/single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules.yar"
+$yararuleURL = "https://raw.githubusercontent.com/sakkarose/wazuh-rac/main/single-node/provisioning/wazuh_endpoint/windows/yara/yara_rules.yar"
+$localYaraRulesPath = Join-Path $PSScriptRoot "yara\yara_rules.yar"
 
 function Enable-PSLogging {
     # Define registry paths for ScriptBlockLogging and ModuleLogging
@@ -35,31 +37,44 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit
 }
 
-# Stop the Wazuh agent service
-Stop-Service -Name wazuh
+if (-not (Test-Path -Path $ossecPath)) {
+    throw "Wazuh agent directory not found at '$ossecPath'. Install the Wazuh Windows agent before running this script."
+}
+
+# Stop the Wazuh agent service if it is running
+$wazuhService = Get-Service -Name $wazuhServiceName -ErrorAction SilentlyContinue
+if ($wazuhService -and $wazuhService.Status -ne "Stopped") {
+    Stop-Service -Name $wazuhServiceName -Force -ErrorAction Stop
+    $wazuhService.WaitForStatus("Stopped", "00:00:30")
+}
 
 # Download Sysmon
 Invoke-WebRequest -Uri $sysmonUrl -OutFile "$PSScriptRoot\Sysmon.zip"
 
 # Extract Sysmon
-Expand-Archive -Path "$PSScriptRoot\Sysmon.zip" -DestinationPath "$PSScriptRoot"
+Expand-Archive -Path "$PSScriptRoot\Sysmon.zip" -DestinationPath "$PSScriptRoot" -Force
 
 # Create Sysmon directory
 if (-Not (Test-Path -Path "$sysmonPath")) {
-    New-Item -ItemType Directory -Path "$sysmonPath"
+    New-Item -ItemType Directory -Path "$sysmonPath" -Force | Out-Null
 }
 
 # Copy Sysmon to the agent
-Copy-Item -Path "$PSScriptRoot\Sysmon64.exe" -Destination "$sysmonPath\Sysmon64.exe"
+Copy-Item -Path "$PSScriptRoot\Sysmon64.exe" -Destination "$sysmonPath\Sysmon64.exe" -Force
 
 # Copy configuration file
-Copy-Item -Path "$PSScriptRoot\sysmon\sysmonconfig.xml" -Destination "$sysmonPath\sysmonconfig.xml"
+Copy-Item -Path "$PSScriptRoot\sysmon\sysmonconfig.xml" -Destination "$sysmonPath\sysmonconfig.xml" -Force
 
 # Set the current location to the Sysmon directory for reliable execution
 Set-Location -Path $sysmonPath
 
-# Start Sysmon with configuration
-Start-Process -FilePath ".\Sysmon64.exe" -ArgumentList @("-accepteula", "-i", ".\sysmonconfig.xml") -NoNewWindow -Wait
+# Install Sysmon or update its configuration if it is already installed
+$sysmonService = Get-Service -Name "Sysmon64" -ErrorAction SilentlyContinue
+if ($sysmonService) {
+    Start-Process -FilePath ".\Sysmon64.exe" -ArgumentList @("-c", ".\sysmonconfig.xml") -NoNewWindow -Wait
+} else {
+    Start-Process -FilePath ".\Sysmon64.exe" -ArgumentList @("-accepteula", "-i", ".\sysmonconfig.xml") -NoNewWindow -Wait
+}
 
 Set-Location -Path $PSScriptRoot
 
@@ -83,7 +98,7 @@ Expand-Archive -Path $yaraZipPath -DestinationPath $yaraExtractPath -Force
 
 # Create the YARA directory
 if (-Not (Test-Path -Path $yaraPath)) {
-    New-Item -ItemType Directory -Path $yaraPath
+    New-Item -ItemType Directory -Path $yaraPath -Force | Out-Null
 }
 
 # Copy the YARA binary to the new directory
@@ -96,33 +111,38 @@ Copy-Item -Path $yaraExe.FullName -Destination $yaraPath -Force
 Remove-Item -Path $yaraExtractPath -Recurse -Force
 Remove-Item -Path $yaraZipPath -Force
 
-# Download the YARA rules file
-Invoke-WebRequest -Uri $yararuleURL -OutFile "$PSScriptRoot\yara_rules.yar"
-
 # Create the YARA rules directory
 if (-Not (Test-Path -Path "$yaraPath\rules")) {
-    New-Item -ItemType Directory -Path "$yaraPath\rules"
+    New-Item -ItemType Directory -Path "$yaraPath\rules" -Force | Out-Null
 }
 
-# Copy the YARA rules to the new directory
-Copy-Item -Path "$PSScriptRoot\yara_rules.yar" -Destination "$yaraPath\rules\"
+# Copy bundled YARA rules, or download them when the script is distributed alone
+if (Test-Path -Path $localYaraRulesPath) {
+    Copy-Item -Path $localYaraRulesPath -Destination "$yaraPath\rules\yara_rules.yar" -Force
+} else {
+    Invoke-WebRequest -Uri $yararuleURL -OutFile "$yaraPath\rules\yara_rules.yar"
+}
 
 # Enable PowerShell logging
 Enable-PSLogging
 
 # Active-response provisioning
-Copy-Item -Path "$PSScriptRoot\active-response\*" -Destination "$ossecPath\active-response\bin\" -Recurse
+Copy-Item -Path "$PSScriptRoot\active-response\*" -Destination "$ossecPath\active-response\bin\" -Recurse -Force
 
 # Create the SCA rules directory
 if (-Not (Test-Path -Path "$scaPath")) {
-    New-Item -ItemType Directory -Path "$scaPath"
+    New-Item -ItemType Directory -Path "$scaPath" -Force | Out-Null
 }
 
 # Copy the SCA rules to the new directory
-Copy-Item -Path "$PSScriptRoot\agent_config\policies\*" -Destination "$scaPath" -Recurse
+Copy-Item -Path "$PSScriptRoot\agent_config\policies\*" -Destination "$scaPath" -Recurse -Force
 
 # Copy the wodles folder
-Copy-Item -Path "$PSScriptRoot\wodles\*" -Destination "$ossecPath\wodles\" -Recurse
+Copy-Item -Path "$PSScriptRoot\wodles\*" -Destination "$ossecPath\wodles\" -Recurse -Force
+
+if ($wazuhService) {
+    Start-Service -Name $wazuhServiceName -ErrorAction Stop
+}
 
 # Print a message asking the user to restart the computer
 Write-Host "Provisioning completed. Please restart your computer to apply all changes."

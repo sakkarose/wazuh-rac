@@ -21,11 +21,11 @@ jobs:
           python-version: '3.12.2'
 
       - name: List directory contents
-        working-directory: ./single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara
+        working-directory: ./single-node/provisioning/wazuh_endpoint/windows/yara
         run: ls -la
 
       - name: install python packages
-        working-directory: ./single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara
+        working-directory: ./single-node/provisioning/wazuh_endpoint/windows/yara
         run: |
           sudo apt-get update
           sudo apt-get install -y yara
@@ -39,14 +39,14 @@ jobs:
 
       - name: Validate generated YARA rules
         run: |
-          yara -w single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules_append.yar /dev/null
-          yara -w single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules.yar /dev/null
+          yara -w single-node/provisioning/wazuh_endpoint/windows/yara/yara_rules_append.yar /dev/null
+          yara -w single-node/provisioning/wazuh_endpoint/windows/yara/yara_rules.yar /dev/null
 
       - name: Commit and push managed YARA rules
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add ./single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara/yara_rules.yar
+          git add ./single-node/provisioning/wazuh_endpoint/windows/yara/yara_rules.yar
           git diff --cached --quiet && echo "No managed YARA changes to commit" || (
             git commit -m "Daily managed YARA rules update"
             git push

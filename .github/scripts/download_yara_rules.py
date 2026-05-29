@@ -5,7 +5,7 @@ import os
 script_dir = os.path.dirname(os.path.abspath(__file__))
 yara_dir = os.path.abspath(os.path.join(
     script_dir,
-    '../../single-node/provisioning/endpoint_assets/wazuh_endpoint/windows/yara'
+    '../../single-node/provisioning/wazuh_endpoint/windows/yara'
 ))
 os.chdir(yara_dir)
 

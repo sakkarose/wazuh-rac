@@ -28,7 +28,7 @@ rule M_Downloader_PEAKLIGHT_1 {
       $str5 = "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::TLS12" ascii wide
       $str6 = /\.EndsWith\(((["']\.zip["'])|(\(\w{1,32}\s{1,16}@\((\d{3,6},){3}\d{3,6}\)\)))/ ascii wide
       $str7 = "Add -Type -Assembly System.IO.Compression.FileSystem" ascii wide
-     $str8 = "[IO.Compression.ZipFile]::OpenRead"
+      $str8 = "[IO.Compression.ZipFile]::OpenRead"
    condition:
      4 of them and filesize < 10KB         
 }
