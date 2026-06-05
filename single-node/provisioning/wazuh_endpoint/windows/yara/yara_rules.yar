@@ -1,8 +1,8 @@
 /*
     VALHALLA YARA RULE SET
-    Retrieved: 2026-06-04 22:16
+    Retrieved: 2026-06-05 22:08
     Generated for User: demo
-    Number of Rules: 2823
+    Number of Rules: 2822
     
     This is the VALHALLA demo rule set. The content represents the 'signature-base' repository in a streamlined format but lacks the rules provided by 3rd parties. All rules are licensed under CC-BY-NC https://creativecommons.org/licenses/by-nc/4.0/.
 */
@@ -3723,27 +3723,6 @@ rule APT_EXPL_Sharepoint_CVE_2025_53770_ForensicArtefact_Jul25_2_RID3B18 : APT C
       $xe6 = "NAEkAQwBSAE8AUwB+ADEAXABXAEUAQgBTAEUAUgB+ADEAXAAxADUAXABUAEUATQBQAEwAQQBUAEUAXABMAEEAWQBPAFUAVABTAFwA" 
    condition: 
       1 of them
-}
-
-rule MAL_WIPER_Unknown_Jun25_RID2F13 : DEMO EXE FILE MAL {
-   meta:
-      description = "Detects unknown disk wiper first spotted in June 2025 and uploaded from Israel"
-      author = "Florian Roth"
-      reference = "https://x.com/cyb3rops/status/1935707307805134975"
-      date = "2025-06-19 11:41:41"
-      score = 75
-      customer = "demo"
-      license = "CC-BY-NC https://creativecommons.org/licenses/by-nc/4.0/"
-      hash1 = "12c39f052f030a77c0cd531df86ad3477f46d1287b8b98b625d1dcf89385d721"
-      tags = "DEMO, EXE, FILE, MAL"
-      minimum_yara = "3.5.0"
-      
-   strings:
-      $x1 = "\\CWipeNew\\Release\\" ascii fullword
-      $s1 = "Failed to get disk geometry: " wide fullword
-      $s2 = "--- Working on " wide fullword
-   condition: 
-      uint16 ( 0 ) == 0x5a4d and filesize < 200KB and ( 1 of ( $x* ) or all of ( $s* ) )
 }
 
 rule SUSP_LNX_SH_Disk_Wiper_Script_Jun25_RID33BE : DEMO FILE LINUX SCRIPT SUSP {
