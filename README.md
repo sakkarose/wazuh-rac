@@ -10,7 +10,7 @@ credentials stay in ignored local files.
 - `single-node/example.env` is a tracked template with placeholder values.
 - `single-node/example.compose.yml` is a tracked Compose override template.
 - `single-node/example.internal_users.yml` is a tracked indexer internal users
-  template with default public hashes.
+  template for password changes.
 - `single-node/.env` and `single-node/.env.*` files are ignored and should
   contain real host secrets.
 - `single-node/compose.*.yml` files are ignored and should contain host-specific
@@ -66,11 +66,16 @@ nano .env.staging
 Use a different local file name on another host if helpful, such as
 `.env.production`.
 
-The stock values are `admin/admin` for the indexer admin user and
-`kibanaserver/kibanaserver` for the dashboard service user. These users are
-reserved in the indexer. If you change their passwords in `.env.staging`, also
-update the matching hashes in the local indexer users file before the first
-`docker compose up`.
+Leave the stock values for the first startup:
+
+```text
+admin / admin
+kibanaserver / kibanaserver
+```
+
+These users are reserved in the indexer. After the stack is healthy, change
+their passwords with the procedure below, then update `.env.staging` with the
+new plaintext passwords.
 
 ## Create a Local Compose Override
 
@@ -96,27 +101,21 @@ Preview the final merged configuration:
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml config
 ```
 
-## Provision Indexer Users
+## Change Reserved Indexer Passwords
 
-The local Compose override mounts a host-local `internal_users.yml` into the
-Wazuh indexer. This lets a fresh indexer initialize reserved users such as
-`admin` and `kibanaserver` from a local file before the first startup.
+Reserved users such as `admin` and `kibanaserver` cannot be changed from the
+dashboard UI. Start the stack once with the stock credentials, wait until the
+containers are healthy, then apply a modified `internal_users.yml` with
+OpenSearch Security's `securityadmin.sh`.
 
-Create the ignored local provisioning file:
+Create the ignored local users file:
 
 ```bash
 mkdir -p config-local/opensearch-security
 cp example.internal_users.yml config-local/opensearch-security/internal_users.yml
 ```
 
-If you want to keep the stock passwords, no further edits are needed:
-
-```text
-admin / admin
-kibanaserver / kibanaserver
-```
-
-To set custom passwords before first startup, generate bcrypt hashes:
+Generate bcrypt hashes for the new passwords:
 
 ```bash
 docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
@@ -135,6 +134,30 @@ users you are changing, usually `admin` and `kibanaserver`:
 nano config-local/opensearch-security/internal_users.yml
 ```
 
+Copy the edited file into the running indexer container:
+
+```bash
+docker cp config-local/opensearch-security/internal_users.yml \
+  single-node-wazuh.indexer:/tmp/internal_users.yml
+```
+
+Apply the file to the indexer security index:
+
+```bash
+docker exec -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
+  single-node-wazuh.indexer \
+  /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh \
+  -f /tmp/internal_users.yml \
+  -t internalusers \
+  -icl \
+  -nhnv \
+  -cacert /usr/share/wazuh-indexer/config/certs/root-ca.pem \
+  -cert /usr/share/wazuh-indexer/config/certs/admin.pem \
+  -key /usr/share/wazuh-indexer/config/certs/admin-key.pem \
+  -h localhost \
+  -p 9200
+```
+
 Then update `.env.staging` with the matching plaintext passwords:
 
 ```env
@@ -144,9 +167,11 @@ DASHBOARD_USERNAME=kibanaserver
 DASHBOARD_PASSWORD='NewKibanaServerPass1?'
 ```
 
-This provisioning path is for first startup with a fresh indexer volume. On an
-existing indexer volume, changing the file is not enough; apply the change with
-OpenSearch Security's `securityadmin.sh` or recreate the staging volume.
+Recreate the manager and dashboard so they reconnect with the new credentials:
+
+```bash
+docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d --force-recreate wazuh.manager wazuh.dashboard
+```
 
 ## Prepare Certificates
 
