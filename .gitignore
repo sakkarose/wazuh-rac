@@ -10,6 +10,7 @@ single-node/wazuh-certs-tool*.sh
 single-node/.env
 single-node/.env.*
 single-node/compose.*.yml
+single-node/config-local/
 single-node/config*.yml
 single-node/config
 

@@ -1,4 +1,10 @@
 services:
+  wazuh.indexer:
+    volumes:
+      # Host-local copy created from example.internal_users.yml.
+      # This configures reserved indexer users before the first startup.
+      - ./config-local/opensearch-security/internal_users.yml:/usr/share/wazuh-indexer/config/opensearch-security/internal_users.yml:ro
+
   wazuh.manager:
     environment:
       INDEXER_USERNAME: ${INDEXER_USERNAME:?Set INDEXER_USERNAME}

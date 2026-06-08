@@ -9,10 +9,14 @@ credentials stay in ignored local files.
 - `single-node/docker-compose.yml` is the tracked base Compose file.
 - `single-node/example.env` is a tracked template with placeholder values.
 - `single-node/example.compose.yml` is a tracked Compose override template.
+- `single-node/example.internal_users.yml` is a tracked indexer internal users
+  template with default public hashes.
 - `single-node/.env` and `single-node/.env.*` files are ignored and should
   contain real host secrets.
 - `single-node/compose.*.yml` files are ignored and should contain host-specific
   Compose overrides.
+- `single-node/config-local/` is ignored and can hold host-local provisioned
+  files such as indexer security users.
 
 You do not need to commit a staging or production Compose file. Create those
 files only on the host where Docker Compose will run.
@@ -62,6 +66,12 @@ nano .env.staging
 Use a different local file name on another host if helpful, such as
 `.env.production`.
 
+The stock values are `admin/admin` for the indexer admin user and
+`kibanaserver/kibanaserver` for the dashboard service user. These users are
+reserved in the indexer. If you change their passwords in `.env.staging`, also
+update the matching hashes in the local indexer users file before the first
+`docker compose up`.
+
 ## Create a Local Compose Override
 
 Copy the example Compose override to a local ignored file:
@@ -85,6 +95,58 @@ Preview the final merged configuration:
 ```bash
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml config
 ```
+
+## Provision Indexer Users
+
+The local Compose override mounts a host-local `internal_users.yml` into the
+Wazuh indexer. This lets a fresh indexer initialize reserved users such as
+`admin` and `kibanaserver` from a local file before the first startup.
+
+Create the ignored local provisioning file:
+
+```bash
+mkdir -p config-local/opensearch-security
+cp example.internal_users.yml config-local/opensearch-security/internal_users.yml
+```
+
+If you want to keep the stock passwords, no further edits are needed:
+
+```text
+admin / admin
+kibanaserver / kibanaserver
+```
+
+To set custom passwords before first startup, generate bcrypt hashes:
+
+```bash
+docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
+  --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
+  wazuh/wazuh-indexer:5.0.0-beta2 -p 'NewAdminPass1?'
+
+docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
+  --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
+  wazuh/wazuh-indexer:5.0.0-beta2 -p 'NewKibanaServerPass1?'
+```
+
+Edit the local internal users file and replace only the `hash:` values for the
+users you are changing, usually `admin` and `kibanaserver`:
+
+```bash
+nano config-local/opensearch-security/internal_users.yml
+```
+
+Then update `.env.staging` with the matching plaintext passwords:
+
+```env
+INDEXER_USERNAME=admin
+INDEXER_PASSWORD='NewAdminPass1?'
+DASHBOARD_USERNAME=kibanaserver
+DASHBOARD_PASSWORD='NewKibanaServerPass1?'
+```
+
+This provisioning path is for first startup with a fresh indexer volume. On an
+existing indexer volume, changing the file is not enough; apply the change with
+OpenSearch Security's `securityadmin.sh` or recreate the staging volume.
 
 ## Prepare Certificates
 
