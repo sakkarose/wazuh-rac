@@ -23,12 +23,26 @@ git clone https://github.com/sakkarose/wazuh-rac.git
 cd wazuh-rac/single-node
 ```
 
-For Wazuh Docker 5.0.0-beta2 testing, use image tags with the `-latest` suffix
-when following the nightly beta2 deployment guidance, for example:
+## Linux/Unix Host Requirements
 
-```yaml
-image: wazuh/wazuh-manager:5.0.0-beta2-latest
+On Linux/Unix Docker hosts, set `vm.max_map_count` before starting Wazuh. The
+Wazuh indexer needs a higher virtual memory map limit than the Linux default.
+
+```bash
+sudo sysctl -w vm.max_map_count=262144
 ```
+
+If this value is lower than `262144`, the Wazuh indexer may fail or behave
+incorrectly.
+
+To run Docker as a non-root user, add that user to the `docker` group:
+
+```bash
+sudo usermod -aG docker <USER>
+```
+
+Replace `<USER>` with your username, then log out and back in for the group
+change to take effect.
 
 ## Create Host Secrets
 
