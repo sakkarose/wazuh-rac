@@ -1,4 +1,4 @@
-# Secure Wazuh Docker Deployment
+# This repository docs
 
 This repository is intended to be cloned directly on each deployed host. The
 tracked files keep the stock Wazuh Docker deployment, while host-specific
@@ -8,6 +8,7 @@ credentials stay in ignored local files.
 
 - `single-node/docker-compose.yml` is the tracked base Compose file.
 - `single-node/example.env` is a tracked template with placeholder values.
+- `single-node/example.compose.yml` is a tracked Compose override template.
 - `single-node/.env` and `single-node/.env.*` files are ignored and should
   contain real host secrets.
 - `single-node/compose.*.yml` files are ignored and should contain host-specific
@@ -63,27 +64,16 @@ Use a different local file name on another host if helpful, such as
 
 ## Create a Local Compose Override
 
-Create an ignored override file on the host:
+Copy the example Compose override to a local ignored file:
+
+```bash
+cp example.compose.yml compose.staging.yml
+```
+
+Review and adjust it for the host:
 
 ```bash
 nano compose.staging.yml
-```
-
-Example:
-
-```yaml
-services:
-  wazuh.manager:
-    environment:
-      INDEXER_USERNAME: ${INDEXER_USERNAME:?Set INDEXER_USERNAME}
-      INDEXER_PASSWORD: ${INDEXER_PASSWORD:?Set INDEXER_PASSWORD}
-
-  wazuh.dashboard:
-    environment:
-      INDEXER_USERNAME: ${INDEXER_USERNAME:?Set INDEXER_USERNAME}
-      INDEXER_PASSWORD: ${INDEXER_PASSWORD:?Set INDEXER_PASSWORD}
-      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:?Set DASHBOARD_USERNAME}
-      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?Set DASHBOARD_PASSWORD}
 ```
 
 Docker Compose merges files from left to right. The tracked
@@ -122,6 +112,9 @@ Download the Wazuh 5.0.0-beta2 certificate tool:
 ```bash
 curl -o wazuh-certs-tool.sh https://packages-staging.xdrsiem.wazuh.info/pre-release/5.x/installation-assistant/wazuh-certs-tool-5.0.0-beta2.sh
 ```
+
+The downloaded `wazuh-certs-tool.sh` file is ignored by git, so it will not
+block future `git pull` operations.
 
 Generate and place certificates:
 
