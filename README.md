@@ -151,11 +151,11 @@ When new tracked configuration is pushed to this repository:
 git pull
 cd single-node
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml config
+docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml pull
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d
 ```
 
-Your local `.env*` and `compose.*.yml` files are ignored by git, so they will
-not be overwritten by repository updates.
+Your local `.env*` and `compose.*.yml` files are ignored by git, so they will not be overwritten by repository updates.
 
 ## Notes
 
