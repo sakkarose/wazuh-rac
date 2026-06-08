@@ -1,24 +1,24 @@
-# This repository docs
+# Wazuh Docker Host Deployment
 
 This repository is intended to be cloned directly on each deployed host. The
-tracked files keep the stock Wazuh Docker deployment, while host-specific
-credentials stay in ignored local files.
+tracked files keep the Wazuh Docker 5.0.0-beta2 single-node deployment generic,
+while real credentials and host-specific overrides stay in ignored local files.
 
 ## File Model
 
 - `single-node/docker-compose.yml` is the tracked base Compose file.
-- `single-node/example.env` is a tracked template with placeholder values.
+- `single-node/example.env` is a tracked env template.
 - `single-node/example.compose.yml` is a tracked Compose override template.
-- `single-node/example.internal_users.yml` is a tracked indexer internal users
-  template for password changes.
-- `single-node/.env` and `single-node/.env.*` files are ignored and should
-  contain real host secrets.
+- `single-node/example.internal_users.yml` is a tracked OpenSearch Security
+  internal users template for password changes.
+- `single-node/.env` and `single-node/.env.*` are ignored and should contain
+  real host secrets.
 - `single-node/compose.*.yml` files are ignored and should contain host-specific
   Compose overrides.
-- `single-node/config-local/` is ignored and can hold host-local provisioned
-  files such as indexer security users.
+- `single-node/config-local/` is ignored and can hold local security files such
+  as the edited `internal_users.yml`.
 
-You do not need to commit a staging or production Compose file. Create those
+You do not need to commit staging or production env/Compose files. Create those
 files only on the host where Docker Compose will run.
 
 ## Clone
@@ -49,45 +49,36 @@ sudo usermod -aG docker <USER>
 Replace `<USER>` with your username, then log out and back in for the group
 change to take effect.
 
-## Create Host Secrets
+## Create Local Files
 
-Copy the example env file to a local ignored file:
+Copy the example env file to an ignored host-local file:
 
 ```bash
 cp example.env .env.staging
 ```
 
-Edit `.env.staging` and replace every placeholder value:
+Use a different name on another host if helpful, such as `.env.production`.
 
-```bash
-nano .env.staging
-```
-
-Use a different local file name on another host if helpful, such as
-`.env.production`.
-
-Leave the stock values for the first startup:
+For the first startup, leave these stock reserved indexer users unchanged:
 
 ```text
 admin / admin
 kibanaserver / kibanaserver
 ```
 
-These users are reserved in the indexer. After the stack is healthy, change
-their passwords with the procedure below, then update `.env.staging` with the
-new plaintext passwords.
+These users are reserved in OpenSearch Security. Start the stack once with the
+stock values, then change the passwords after the containers are healthy.
 
-## Create a Local Compose Override
-
-Copy the example Compose override to a local ignored file:
+Copy the example Compose override to an ignored host-local file:
 
 ```bash
 cp example.compose.yml compose.staging.yml
 ```
 
-Review and adjust it for the host:
+Review the local files:
 
 ```bash
+nano .env.staging
 nano compose.staging.yml
 ```
 
@@ -101,12 +92,68 @@ Preview the final merged configuration:
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml config
 ```
 
+## Prepare Certificates
+
+Create the certificate config:
+
+```bash
+cat > config.yml <<'EOF'
+nodes:
+  indexer:
+    - name: wazuh.indexer
+      dns: "wazuh.indexer"
+
+  manager:
+    - name: wazuh.manager
+      dns: "wazuh.manager"
+
+  dashboard:
+    - name: wazuh.dashboard
+      dns: "wazuh.dashboard"
+EOF
+```
+
+Download the Wazuh 5.0.0-beta2 certificate tool:
+
+```bash
+curl -o wazuh-certs-tool.sh https://packages-staging.xdrsiem.wazuh.info/pre-release/5.x/installation-assistant/wazuh-certs-tool-5.0.0-beta2.sh
+```
+
+The downloaded `wazuh-certs-tool.sh` file is ignored by git, so it will not
+block future `git pull` operations.
+
+Generate and place certificates:
+
+```bash
+bash ../tools/utils/deployment/certificates-conf.sh --cert --copy --priv
+```
+
+## First Deployment
+
+Start the stack with the stock reserved-user passwords:
+
+```bash
+docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d
+```
+
+Keep the dashboard port restricted during this bootstrap phase because the
+stock credentials are still active.
+
+Wait until the containers are healthy:
+
+```bash
+docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml ps
+```
+
+The first startup can take a minute or two while the Wazuh indexer and dashboard
+initialize. It is normal to see temporary dashboard logs saying it cannot
+connect to the Wazuh indexer on port `9200` until the indexer is ready.
+
 ## Change Reserved Indexer Passwords
 
 Reserved users such as `admin` and `kibanaserver` cannot be changed from the
-dashboard UI. Start the stack once with the stock credentials, wait until the
-containers are healthy, then apply a modified `internal_users.yml` with
-OpenSearch Security's `securityadmin.sh`.
+dashboard UI. After the first deployment is healthy, apply a modified
+`internal_users.yml` with OpenSearch Security's `securityadmin.sh`.
 
 Create the ignored local users file:
 
@@ -158,7 +205,7 @@ docker exec -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
   -p 9200
 ```
 
-Then update `.env.staging` with the matching plaintext passwords:
+Update `.env.staging` with the matching plaintext passwords:
 
 ```env
 INDEXER_USERNAME=admin
@@ -173,51 +220,15 @@ Recreate the manager and dashboard so they reconnect with the new credentials:
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d --force-recreate wazuh.manager wazuh.dashboard
 ```
 
-## Prepare Certificates
-
-Create the certificate config:
+Check health again:
 
 ```bash
-cat > config.yml <<'EOF'
-nodes:
-  indexer:
-    - name: wazuh.indexer
-      dns: "wazuh.indexer"
-
-  manager:
-    - name: wazuh.manager
-      dns: "wazuh.manager"
-
-  dashboard:
-    - name: wazuh.dashboard
-      dns: "wazuh.dashboard"
-EOF
+docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml ps
 ```
 
-Download the Wazuh 5.0.0-beta2 certificate tool:
+## Access Dashboard
 
-```bash
-curl -o wazuh-certs-tool.sh https://packages-staging.xdrsiem.wazuh.info/pre-release/5.x/installation-assistant/wazuh-certs-tool-5.0.0-beta2.sh
-```
-
-The downloaded `wazuh-certs-tool.sh` file is ignored by git, so it will not
-block future `git pull` operations.
-
-Generate and place certificates:
-
-```bash
-bash ../tools/utils/deployment/certificates-conf.sh --cert --copy --priv
-```
-
-## Deploy
-
-Start the stack in the background:
-
-```bash
-docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d
-```
-
-Access the dashboard:
+After the password change, access the dashboard:
 
 ```text
 https://<DOCKER_HOST_IP>
@@ -225,10 +236,6 @@ https://<DOCKER_HOST_IP>
 
 If you use self-signed certificates, the browser will warn that it cannot verify
 the certificate.
-
-The first startup can take a minute or two while the Wazuh indexer and dashboard
-initialize. It is normal to see temporary dashboard logs saying it cannot connect
-to the Wazuh indexer on port `9200` until the indexer is ready.
 
 ## Update This Host
 
@@ -242,7 +249,8 @@ docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d
 ```
 
-Your local `.env*` and `compose.*.yml` files are ignored by git, so they will not be overwritten by repository updates.
+Your local `.env*`, `compose.*.yml`, and `config-local/` files are ignored by
+git, so they will not be overwritten by repository updates.
 
 ## Notes
 
@@ -251,10 +259,8 @@ Your local `.env*` and `compose.*.yml` files are ignored by git, so they will no
 - Keep the tracked `docker-compose.yml` generic so future config updates can be
   pulled cleanly.
 - Docker does not dynamically reload component configuration. After changing a
-  component configuration or override, recreate the stack with `docker compose
-  up -d`.
+  component configuration or override, recreate the affected containers with
+  `docker compose up -d`.
 - The env and override files keep host-specific values out of git. They do not
-  replace Wazuh/OpenSearch password-rotation procedures. Some default users may
-  require security index or internal user changes beyond Compose environment
-  variables. Always verify the effective credentials before exposing the
-  dashboard.
+  replace Wazuh/OpenSearch password-rotation procedures. Always verify the
+  effective credentials before exposing the dashboard.
