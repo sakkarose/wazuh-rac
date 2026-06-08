@@ -1,0 +1,142 @@
+<group name="mariadb,">
+  <rule id="100217" level="0">
+    <decoded_as>mariadatabase-decoder</decoded_as>
+    <description>"MariaDB audit -"</description>
+  </rule>
+
+<!-- successful account manipulation -->
+  <rule id="100218" level="7">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.object" type="pcre2">(?i)GRANT|REVOKE|CREATE USER|DROP USER|RENAME USER</field>
+    <field name="mariadb.retcode" type="pcre2">^0$</field>
+    <description>"MariaDB audit -" Successful account manipulation: $(mariadb.object)</description>
+    <mitre>
+      <id>T1078</id>
+    </mitre>
+  </rule>
+
+<!-- successful DROP/TRUNCATE/DELETE execution -->
+  <rule id="100219" level="10">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.object" type="pcre2">(?i)DROP TABLE|DROP DATABASE|TRUNCATE|DELETE</field>
+    <field name="mariadb.retcode" type="pcre2">^0$</field>
+    <description>"MariaDB audit -" Successful deletion: $(mariadb.object)</description>
+    <mitre>
+      <id>T1485</id>
+    </mitre>
+  </rule>
+
+<!-- successful modification-->
+  <rule id="100220" level="7">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.object" type="pcre2">(?i)ALTER|UPDATE</field>
+    <field name="mariadb.retcode" type="pcre2">^0$</field>
+    <description>"MariaDB audit -" Successful schema/data modification: $(mariadb.object)</description>
+    <mitre>
+      <id>T1565.001</id>
+    </mitre>
+  </rule>
+
+<!-- Unauthorized access to MariaDB server -->
+  <rule id="100221" level="5">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.operation" type="pcre2">FAILED_CONNECT</field>
+    <description>"MariaDB audit -" Authentication failed: $(mariadb.username)@$(mariadb.userhost)</description>
+    <group>authentication_failures,</group>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+  </rule>
+
+<!-- Possible brute force attack -->
+  <rule id="100222" level="7" frequency="5" timeframe="30">
+    <if_matched_sid>100221</if_matched_sid>    
+    <field name="mariadb.operation" type="pcre2">FAILED_CONNECT</field>
+    <same_field>mariadb.userhost</same_field>
+    <description>"MariaDB audit -" Possible brute force attack from $(mariadb.username)@$(mariadb.userhost)</description>
+    <group>authentication_failures,</group>
+    <mitre>
+      <id>T1110</id>
+    </mitre>
+  </rule>
+
+<!-- Data definition operation-->
+  <rule id="100223" level="5">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.object" type="pcre2">(?i)RENAME</field>
+    <field name="mariadb.retcode" type="pcre2">^0$</field>
+    <description>"MariaDB audit -" Successful data definition operation: $(mariadb.object)</description>
+    <mitre>
+      <id>T1036</id>
+    </mitre>
+  </rule>
+
+  <rule id="100224" level="5">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.object" type="pcre2">(?i)CREATE</field>
+    <field name="mariadb.retcode" type="pcre2">^0$</field>
+    <description>"MariaDB audit -" Successful data definition operation: $(mariadb.object)</description>
+    <mitre>
+      <id>T1565.001</id>
+    </mitre>
+  </rule>
+
+<!-- Data manipulation operation-->
+  <rule id="100225" level="5">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.object" type="pcre2">(?i)INSERT|MERGE</field>
+    <field name="mariadb.retcode" type="pcre2">^0$</field>
+    <description>"MariaDB audit -" Successful data manipulation operation: $(mariadb.object)</description>
+    <mitre>
+      <id>T1565.001</id>
+    </mitre>
+  </rule>
+
+<!-- successful disconnection from MariaDB server -->
+  <rule id="100226" level="3">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.operation">DISCONNECT</field>
+    <description>"MariaDB audit -" User session closed: $(mariadb.username)@$(mariadb.userhost)</description>
+  </rule>
+
+<!-- successful authentication to MariaDB server -->
+  <rule id="100227" level="3">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.operation" type="pcre2">^CONNECT</field>
+    <field name="mariadb.retcode" type="pcre2">^0$</field>
+    <description>"MariaDB audit -" Successful authentication: $(mariadb.username)@$(mariadb.userhost)</description>
+  </rule>
+
+<!-- Data query-->
+  <rule id="100228" level="3">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.object" type="pcre2">(?i)SELECT|SHOW|DESCRIBE|USE|EXPLAIN</field>
+    <field name="mariadb.retcode" type="pcre2">^0$</field>
+    <description>"MariaDB audit -" Successful data query: $(mariadb.object)</description>
+    <mitre>
+      <id>T1082</id>
+    </mitre>
+  </rule>
+
+<!-- Plugin operation -->
+<rule id="100229" level="7">
+  <if_sid>100217</if_sid>
+  <field name="mariadb.object" type="pcre2">(?i)INSTALL|UNINSTALL|PLUGIN</field>
+  <field name="mariadb.retcode" type="pcre2">^0$</field>
+  <description>"MariaDB audit -" Plugin operation detected: $(mariadb.object)</description>
+</rule>
+
+<!-- Execution Error -->
+  <rule id="100230" level="3">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.retcode" type="pcre2">(?!0\b)\d+</field>
+    <description>"MariaDB audit -" An operation returned error $(mariadb.retcode): $(mariadb.object)</description>
+  </rule>
+
+<!-- All other successful operations -->
+  <rule id="100231" level="3">
+    <if_sid>100217</if_sid>
+    <field name="mariadb.retcode" type="pcre2">^0$</field>
+    <description>"MariaDB audit -" Successful operation: $(mariadb.object)</description>
+  </rule>
+</group>

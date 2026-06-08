@@ -1,0 +1,77 @@
+<group name="gunra,ransomware,">
+
+<!-- Ransom note file creation -->
+  <rule id="100291" level="15" timeframe="100" frequency="2"  ignore="100">
+    <if_sid>61613</if_sid>
+    <field name="win.eventdata.Image" type="pcre2">[^"]+\.exe</field>
+    <field name="win.eventdata.targetFilename" type="pcre2">[^"]*R3ADM3\.txt</field>
+    <description>Possible Gunra ransomware activity detected: Multiple ransom notes dropped in $(win.eventdata.targetFilename)</description>
+    <mitre>
+        <id>T1543.003</id>
+        <id>T1486</id> 
+    </mitre>
+  </rule>
+
+<!-- Antimalware Scan Interface Access Modification -->
+
+  <rule id="100292" level="7">
+    <if_sid>61609</if_sid>
+    <field name="win.eventdata.Image" type="pcre2">C:\\\\Windows\\\\System32\\\\VSSVC\.exe</field>
+    <field name="win.eventdata.ImageLoaded" type="pcre2">C:\\\\Windows\\\\System32\\\\amsi\.dll</field>
+    <description>Possible ransomware activity detected: Suspicious Volume Shadow copy Service (VSS) loaded amsi.dll for tampering and evasion attempt.</description>
+    <mitre>
+      <id>T1562</id>
+      <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+  <rule id="100293" level="7">
+    <if_sid>61609</if_sid>
+    <field name="win.eventdata.Image" type="pcre2">(C:\\\\Windows\\\\SystemApps\\\\Microsoft\.Windows\.AppRep\.ChxApp_cw5n1h2txyewy\\\\CHXSmartScreen\.exe)</field>
+    <field name="win.eventdata.ImageLoaded" type="pcre2">C:\\\\Windows\\\\System32\\\\urlmon\.dll</field>
+    <description>Possible ransomware activity detected: Urlmon.dll was loaded, indicating network reconnaissance.</description>
+    <mitre>
+        <id>T1562.001</id>
+    </mitre>
+  </rule>
+
+<!-- Volume Shadow copy Service (VSS) deletion -->
+  <rule id="100294" level="7">
+    <if_sid>60103</if_sid>
+    <field name="win.eventdata.targetUserName" type="pcre2">Backup Operators</field>
+    <field name="win.eventdata.targetSid" type="pcre2">S-1-5-32-551</field>
+    <field name="win.eventdata.callerProcessName" type="pcre2">C:\\\\Windows\\\\System32\\\\VSSVC\.exe</field>
+    <description>Possible Gunra ransomware activity detected: Volume Shadow copy Service (VSS) deletion attempts, gearing up to disable backups.</description>
+    <mitre>
+      <id>T1562</id>
+      <id>T1562.002</id>
+    </mitre>
+  </rule>
+
+  <rule id="100295" level="7">
+    <if_sid>60103</if_sid>
+    <field name="win.eventdata.targetUserName" type="pcre2">Administrators</field>
+    <field name="win.eventdata.targetSid" type="pcre2">S-1-5-32-544</field>
+    <field name="win.eventdata.callerProcessName" type="pcre2">C:\\\\Windows\\\\System32\\\\VSSVC\.exe</field>
+    <description>Possible Gunra ransomware activity detected: Volume Shadow copy Service (VSS) deletion shadow attempts, gearing to disable local admin accounts</description>
+    <mitre>
+      <id>T1562</id>
+      <id>T1562.002</id>
+    </mitre>
+  </rule>
+
+</group>
+
+<group name="virustotal,">
+  <rule id="100296" level="12">
+    <if_sid>657</if_sid>
+    <match>Successfully removed threat</match>
+    <description>$(parameters.program) removed threat located at $(parameters.alert.data.virustotal.source.file)</description>
+  </rule>
+
+  <rule id="100297" level="12">
+    <if_sid>657</if_sid>
+    <match>Error removing threat</match>
+    <description>Error removing threat located at $(parameters.alert.data.virustotal.source.file)</description>
+  </rule>
+</group>

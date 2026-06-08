@@ -1,20 +1,7 @@
 name: Content static checks
 
 on:
-  pull_request:
-    paths:
-      - 'single-node/provisioning/wazuh_manager/etc/**'
-      - 'single-node/provisioning/wazuh_endpoint/**'
-      - '.github/scripts/**'
-      - '.github/workflows/**'
-  push:
-    branches:
-      - main
-    paths:
-      - 'single-node/provisioning/wazuh_manager/etc/**'
-      - 'single-node/provisioning/wazuh_endpoint/**'
-      - '.github/scripts/**'
-      - '.github/workflows/**'
+  # Temporarily manual-only while provisioning config is archived at the repo root.
   workflow_dispatch:
 
 jobs:

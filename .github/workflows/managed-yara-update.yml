@@ -1,8 +1,7 @@
 name: Update YARA rules
 
 on:
-  schedule:
-    - cron: '0 21 * * *' # At 21:00 UTC (4:00 AM GMT+7)
+  # Temporarily manual-only while provisioning config is archived at the repo root.
   workflow_dispatch: # Allow manual triggering of the workflow
 
 permissions:

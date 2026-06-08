@@ -1,0 +1,1 @@
+alert udp any 68 -> any 67 (msg: "Too many DHCP DISCOVER packets!"; sid:11; flow: to_server; threshold: type both, track by_src, count 100, seconds 300;)
