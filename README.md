@@ -1,58 +1,166 @@
-# Wazuh containers for Docker
+# Secure Wazuh Docker Deployment
 
-[![Slack](https://img.shields.io/badge/slack-join-blue.svg)](https://wazuh.com/community/join-us-on-slack/)
-[![Email](https://img.shields.io/badge/email-join-blue.svg)](https://groups.google.com/forum/#!forum/wazuh)
+This repository is intended to be cloned directly on each deployed host. The
+tracked files keep the stock Wazuh Docker deployment, while host-specific
+credentials stay in ignored local files.
 
-## Description
+## File Model
 
-The `wazuh/wazuh-docker` repository provides resources to deploy the Wazuh cybersecurity platform using Docker containers. This setup enables easy installation and orchestration of the full Wazuh stack, including the Wazuh manager, dashboard (based on OpenSearch Dashboards), and OpenSearch for indexing and search.
+- `single-node/docker-compose.yml` is the tracked base Compose file.
+- `single-node/example.env` is a tracked template with placeholder values.
+- `single-node/.env` and `single-node/.env.*` files are ignored and should
+  contain real host secrets.
+- `single-node/compose.*.yml` files are ignored and should contain host-specific
+  Compose overrides.
 
-## Capabilities
+You do not need to commit a staging or production Compose file. Create those
+files only on the host where Docker Compose will run.
 
-- Full deployment of the Wazuh stack using Docker.
-- `docker compose` support for orchestration.
-- Scalable architecture with multi-node support.
-- Data persistence through configurable volumes.
-- Ready-to-use configurations for production or testing environments.
+## Clone
 
-## Branch Convention
+```bash
+git clone https://github.com/sakkarose/wazuh-rac.git
+cd wazuh-rac/single-node
+```
 
-- `main`: Developing and testing of new features.
-- `X.Y.Z`: Version-specific branches (e.g., `5.0.0`, `4.14.0`, etc.).
+For Wazuh Docker 5.0.0-beta2 testing, use image tags with the `-latest` suffix
+when following the nightly beta2 deployment guidance, for example:
 
-## Documentation
+```yaml
+image: wazuh/wazuh-manager:5.0.0-beta2-latest
+```
 
-Official documentation is available at:
+## Create Host Secrets
 
-[https://documentation.wazuh.com/current/deployment-options/docker/index.html](https://documentation.wazuh.com/current/deployment-options/docker/index.html)
+Copy the example env file to a local ignored file:
 
-You can also explore internal documentation in the [`docs`](https://github.com/wazuh/wazuh-docker/tree/main/docs) folder of this repository.
+```bash
+cp example.env .env.staging
+```
 
-## Get Involved
+Edit `.env.staging` and replace every placeholder value:
 
-- **Fork the repository** and create your own branches to add features or fix bugs.
-- **Open issues** to report bugs or request features.
-- **Submit pull requests** following the contributing guidelines.
-- Participate in [discussions](https://github.com/wazuh/wazuh-docker/discussions) if available.
+```bash
+nano .env.staging
+```
 
-## Authors / Maintainers
+Use a different local file name on another host if helpful, such as
+`.env.production`.
 
-These Docker containers are based on:
+## Create a Local Compose Override
 
-*  "deviantony" dockerfiles which can be found at [https://github.com/deviantony/docker-elk](https://github.com/deviantony/docker-elk)
-*  "xetus-oss" dockerfiles, which can be found at [https://github.com/xetus-oss/docker-ossec-server](https://github.com/xetus-oss/docker-ossec-server)
+Create an ignored override file on the host:
 
-This project is maintained by the [Wazuh](https://wazuh.com) team, with active contributions from the community.
+```bash
+nano compose.staging.yml
+```
 
-See the full list of contributors at:
-[https://github.com/wazuh/wazuh-docker/graphs/contributors](https://github.com/wazuh/wazuh-docker/graphs/contributors)
+Example:
 
-We thank them and everyone else who has contributed to this project.
+```yaml
+services:
+  wazuh.manager:
+    environment:
+      INDEXER_USERNAME: ${INDEXER_USERNAME:?Set INDEXER_USERNAME}
+      INDEXER_PASSWORD: ${INDEXER_PASSWORD:?Set INDEXER_PASSWORD}
 
-## License and copyright
+  wazuh.dashboard:
+    environment:
+      INDEXER_USERNAME: ${INDEXER_USERNAME:?Set INDEXER_USERNAME}
+      INDEXER_PASSWORD: ${INDEXER_PASSWORD:?Set INDEXER_PASSWORD}
+      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:?Set DASHBOARD_USERNAME}
+      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?Set DASHBOARD_PASSWORD}
+```
 
-Wazuh Docker Copyright (C) 2017, Wazuh Inc. (License GPLv2)
+Docker Compose merges files from left to right. The tracked
+`docker-compose.yml` is the base file, and `compose.staging.yml` overrides only
+the fields you define.
 
-## Web references
+Preview the final merged configuration:
 
-[Wazuh website](http://wazuh.com)
+```bash
+docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml config
+```
+
+## Prepare Certificates
+
+Create the certificate config:
+
+```bash
+cat > config.yml <<'EOF'
+nodes:
+  indexer:
+    - name: wazuh.indexer
+      dns: "wazuh.indexer"
+
+  manager:
+    - name: wazuh.manager
+      dns: "wazuh.manager"
+
+  dashboard:
+    - name: wazuh.dashboard
+      dns: "wazuh.dashboard"
+EOF
+```
+
+Download the Wazuh 5.0.0-beta2 certificate tool:
+
+```bash
+curl -o wazuh-certs-tool.sh https://packages-staging.xdrsiem.wazuh.info/pre-release/5.x/installation-assistant/wazuh-certs-tool-5.0.0-beta2.sh
+```
+
+Generate and place certificates:
+
+```bash
+bash ../tools/utils/deployment/certificates-conf.sh --cert --copy --priv
+```
+
+## Deploy
+
+Start the stack in the background:
+
+```bash
+docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d
+```
+
+Access the dashboard:
+
+```text
+https://<DOCKER_HOST_IP>
+```
+
+If you use self-signed certificates, the browser will warn that it cannot verify
+the certificate.
+
+The first startup can take a minute or two while the Wazuh indexer and dashboard
+initialize. It is normal to see temporary dashboard logs saying it cannot connect
+to the Wazuh indexer on port `9200` until the indexer is ready.
+
+## Update This Host
+
+When new tracked configuration is pushed to this repository:
+
+```bash
+git pull
+cd single-node
+docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml config
+docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d
+```
+
+Your local `.env*` and `compose.*.yml` files are ignored by git, so they will
+not be overwritten by repository updates.
+
+## Notes
+
+- Do not commit real credentials.
+- Keep host-specific changes in ignored files.
+- Keep the tracked `docker-compose.yml` generic so future config updates can be
+  pulled cleanly.
+- Docker does not dynamically reload component configuration. After changing a
+  component configuration or override, recreate the stack with `docker compose
+  up -d`.
+- The env and override files keep host-specific values out of git. They do not
+  replace Wazuh/OpenSearch password-rotation procedures. Some default users may
+  require security index or internal user changes beyond Compose environment
+  variables. Always verify the effective credentials before exposing the
+  dashboard.
