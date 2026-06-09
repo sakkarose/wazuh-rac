@@ -11,12 +11,14 @@ while real credentials and host-specific overrides stay in ignored local files.
 - `single-node/example.compose.yml` is a tracked Compose override template.
 - `single-node/example.internal_users.yml` is a tracked OpenSearch Security
   internal users template for password changes.
+- `single-node/tracked-config/` contains shared deployment configuration that
+  should update on every host through `git pull`, such as agent group configs.
 - `single-node/.env` and `single-node/.env.*` are ignored and should contain
   real host secrets.
 - `single-node/compose.*.yml` files are ignored and should contain host-specific
   Compose overrides.
 - `single-node/config-local/` is ignored and can hold local security files such
-  as the edited `internal_users.yml`.
+  as the edited `internal_users.yml` and host-specific manager config.
 
 You do not need to commit staging or production env/Compose files. Create those
 files only on the host where Docker Compose will run.
@@ -128,6 +130,37 @@ Generate and place certificates:
 bash ../tools/utils/deployment/certificates-conf.sh --cert --copy --priv
 ```
 
+## Agent Group Directories
+
+To make enrollment groups available at boot, bind-mount their shared
+directories into the manager. This keeps the same model as older Wazuh
+deployments: each group is a directory under the manager shared config path.
+
+The tracked baseline currently provides these group configs:
+
+```text
+tracked-config/wazuh-manager/shared/windows/agent.conf
+tracked-config/wazuh-manager/shared/linux/agent.conf
+```
+
+They can remain empty until you add group-specific agent configuration. Because
+these files are tracked, future group config updates arrive on each host through
+the normal `git pull` update flow. Wazuh validates enrollment groups by checking
+that the corresponding shared group directory exists under
+`/var/wazuh-manager/etc/shared/`; otherwise enrollment requests for that group
+are rejected as `Invalid group`.
+
+After startup, verify the groups:
+
+```bash
+docker exec single-node-wazuh.manager bash -lc '
+/var/wazuh-manager/bin/agent_groups -l
+'
+```
+
+To provision real group config later, edit the tracked group files and deploy
+them with the normal repository update procedure.
+
 ## First Deployment
 
 Start the stack with the stock reserved-user passwords:
@@ -226,6 +259,11 @@ Check health again:
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml ps
 ```
 
+If the dashboard returns `500 Internal Server Error` after the password
+change, clear the browser site data for the dashboard URL or test in a private
+browser window. A stale dashboard session from the stock credentials can cause
+the login flow to fail even when the new indexer passwords are correct.
+
 ## Access Dashboard
 
 After the password change, access the dashboard:
@@ -247,6 +285,14 @@ cd single-node
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml config
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml pull
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d
+```
+
+If the update includes tracked manager group config changes under
+`tracked-config/wazuh-manager/shared/`, recreate the manager container so the
+bind-mounted files are re-read:
+
+```bash
+docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d --force-recreate wazuh.manager
 ```
 
 Your local `.env*`, `compose.*.yml`, and `config-local/` files are ignored by
