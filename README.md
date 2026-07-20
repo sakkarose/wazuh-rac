@@ -1,7 +1,7 @@
 # Wazuh Docker Host Deployment
 
 This repository is intended to be cloned directly on each deployed host. The
-tracked files keep the Wazuh Docker 5.0.0-beta2 single-node deployment generic,
+tracked files keep the Wazuh Docker 5.0.0-beta3 single-node deployment generic,
 while real credentials and host-specific overrides stay in ignored local files.
 
 ## File Model
@@ -115,10 +115,10 @@ nodes:
 EOF
 ```
 
-Download the Wazuh 5.0.0-beta2 certificate tool:
+Download the Wazuh 5.0.0-beta3 certificate tool:
 
 ```bash
-curl -o wazuh-certs-tool.sh https://packages-staging.xdrsiem.wazuh.info/pre-release/5.x/installation-assistant/wazuh-certs-tool-5.0.0-beta2.sh
+curl -o wazuh-certs-tool.sh https://packages-staging.xdrsiem.wazuh.info/pre-release/5.x/installation-assistant/wazuh-certs-tool-5.0.0-beta3.sh
 ```
 
 The downloaded `wazuh-certs-tool.sh` file is ignored by git, so it will not
@@ -200,11 +200,11 @@ Generate bcrypt hashes for the new passwords:
 ```bash
 docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
   --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
-  wazuh/wazuh-indexer:5.0.0-beta2 -p 'NewAdminPass1?'
+  wazuh/wazuh-indexer:5.0.0-beta3 -p 'NewAdminPass1?'
 
 docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
   --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
-  wazuh/wazuh-indexer:5.0.0-beta2 -p 'NewKibanaServerPass1?'
+  wazuh/wazuh-indexer:5.0.0-beta3 -p 'NewKibanaServerPass1?'
 ```
 
 Edit the local internal users file and replace only the `hash:` values for the

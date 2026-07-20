@@ -8,7 +8,7 @@
 # kibanaserver and apply the file with securityadmin.sh after the stack is
 # running with the stock credentials.
 # Hashes can be generated with:
-#   docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh wazuh/wazuh-indexer:5.0.0-beta2 -p 'NewPassword1?'
+#   docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh wazuh/wazuh-indexer:5.0.0-beta3 -p 'NewPassword1?'
 
 _meta:
   type: "internalusers"
