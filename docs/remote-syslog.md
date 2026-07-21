@@ -4,7 +4,7 @@ Wazuh 5 removes raw syslog input from the Manager's `remoted` service. The
 supported architecture uses an external syslog receiver and a separate Wazuh
 agent on the collection host.
 
-Refer to `syslog-input-4x-to-5x.md` for the upstream migration architecture,
+Refer to [syslog-input-4x-to-5x.md](https://github.com/wazuh/wazuh/blob/v5.0.0-beta3/docs/guide/migration/syslog-input-4x-to-5x.md) for the upstream migration architecture,
 the choice between journald and log-file collection, agent installation, and
 the agent `<localfile>` configuration. Refer to `rules-4x-to-5x.md` when custom
 decoding or rules are required.
