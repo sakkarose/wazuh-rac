@@ -4,8 +4,7 @@ services:
       INDEXER_USERNAME: ${INDEXER_USERNAME:?Set INDEXER_USERNAME}
       INDEXER_PASSWORD: ${INDEXER_PASSWORD:?Set INDEXER_PASSWORD}
     volumes:
-      - ./tracked-config/wazuh-manager/shared/windows:/var/wazuh-manager/etc/shared/windows:ro
-      - ./tracked-config/wazuh-manager/shared/linux:/var/wazuh-manager/etc/shared/linux:ro
+      - ./tracked-config/wazuh-manager:/wazuh-config-mount/etc:ro
 
   wazuh.dashboard:
     environment:
