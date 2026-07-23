@@ -30,8 +30,8 @@ with the `security` category.
   decoder.
 - `integrations/ipfire-netfilter/samples/netfilter.samples.txt`: sanitized logtest
   fixtures. Submit one line at a time.
-- `integrations/ipfire-netfilter/dashboard/ipfire-netfilter-dashboard.ndjson`:
-  premade Saved Objects bundle for manual import into Wazuh Dashboard.
+- `integrations/ipfire/dashboard/ipfire-dashboard.ndjson`: combined IPFire
+  Saved Objects bundle for manual import into Wazuh Dashboard.
 
 ## 1. Create the Draft integration
 
@@ -261,8 +261,8 @@ example:
 - Counts by `rule.name` and `network.transport`.
 - Counts by `observer.name` when multiple IPFire instances are connected.
 
-The complete panel definitions and UI procedure are in
-[IPFire Netfilter dashboard](ipfire-netfilter-dashboard.md).
+The import and usage procedure is in
+[IPFire dashboard](ipfire-dashboard.md).
 
 Add narrowly scoped rules and a detector later for high-signal conditions that
 should create findings.

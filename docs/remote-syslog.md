@@ -202,7 +202,7 @@ observer.type
 The repository's Wazuh 5 integration and manual installation procedure are in
 [IPFire Netfilter integration](ipfire-netfilter-integration.md).
 Its operational dashboard procedure is in
-[IPFire Netfilter dashboard](ipfire-netfilter-dashboard.md).
+[IPFire dashboard](ipfire-dashboard.md).
 
 Keep `source.ip` and `destination.ip` for the endpoints described by the
 firewall event. Do not use `source.ip` as the identity of the firewall itself.
