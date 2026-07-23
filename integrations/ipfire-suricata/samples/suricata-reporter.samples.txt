@@ -1,0 +1,2 @@
+2026-07-22T19:10:40.975587+07:00 169.254.254.9 suricata-reporter[5187]: [Drop] [**] [1:2101616:9] GPL DNS named version attempt [**] [Classification: Attempted Information Leak] [Priority: 2] {UDP} 156.59.47.46:60450 -> 125.212.242.1:53
+2026-07-22T19:17:32.654346+07:00 169.254.254.9 suricata-reporter[5187]: [Drop] [**] [1:2019102:1] ET DOS Possible SSDP Amplification Scan in Progress [**] [Classification: Attempted Denial of Service] [Priority: 2] {UDP} 45.194.67.120:4886 -> 125.212.242.11:1900

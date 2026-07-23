@@ -1,0 +1,46 @@
+name: "decoder/ipfire-netfilter/0"
+metadata:
+  author: "Wazuh RAC"
+  date: "2026-07-22T00:00:00Z"
+  description: >-
+    Normalizes IPFire Netfilter blacklist and hostile-source packet drops
+    received through an RFC 3339 rsyslog relay.
+  documentation: "docs/ipfire-netfilter-integration.md"
+  modified: "2026-07-22T00:00:00Z"
+  references:
+    - "https://www.ipfire.org/docs/configuration/firewall"
+    - "https://documentation.wazuh.com/5.0-beta/user-manual/data-analysis/detection-workflow.html"
+  supports:
+    - "IPFire Netfilter IPv4 TCP and UDP drop messages relayed by rsyslog"
+  title: "IPFire Netfilter drop decoder"
+parents:
+  - "decoder/core-wazuh-message/0"
+check: >-
+  contains($event.original, " kernel: BLKLST_")
+  OR contains($event.original, " kernel: DROP_HOSTILE ")
+parse|event.original:
+  - "<event.start/ISO8601> <host.hostname> kernel: <message>"
+normalize:
+  - parse|message:
+      - "<rule.name> IN=<?observer.ingress.interface.name> OUT=<?observer.egress.interface.name> MAC=<_ipfire.netfilter.mac_header> SRC=<source.ip> DST=<destination.ip> LEN=<network.bytes> TOS=<_ipfire.netfilter.tos> PREC=<_ipfire.netfilter.precedence> TTL=<_ipfire.netfilter.ttl/long> ID=<_ipfire.netfilter.ip_id/long>(? DF) PROTO=<_ipfire.netfilter.transport> SPT=<source.port> DPT=<destination.port><~>"
+  - parse|host.hostname:
+      - "<observer.ip>"
+  - map:
+      - event.action: "packet-dropped"
+      - event.category: "array_append(network)"
+      - event.dataset: "ipfire.netfilter"
+      - event.kind: "event"
+      - event.outcome: "success"
+      - event.reason: "$rule.name"
+      - event.type: "array_append(connection, denied)"
+      - network.direction: "inbound"
+      - network.transport: "downcase($_ipfire.netfilter.transport)"
+      - network.type: "ipv4"
+      - observer.name: "$host.hostname"
+      - observer.product: "IPFire"
+      - observer.type: "firewall"
+      - observer.vendor: "IPFire Project"
+      - source.address: "$source.ip"
+      - destination.address: "$destination.ip"
+      - related.ip: "array_append_any($source.ip, $destination.ip)"
+enabled: true

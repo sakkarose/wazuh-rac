@@ -1,0 +1,48 @@
+name: "decoder/ipfire-suricata/0"
+metadata:
+  author: "Wazuh RAC"
+  date: "2026-07-22T00:00:00Z"
+  description: >-
+    Normalizes IPFire suricata-reporter IDS/IPS alerts received through an RFC
+    3339 rsyslog relay.
+  documentation: "docs/ipfire-suricata-integration.md"
+  modified: "2026-07-22T00:00:00Z"
+  references:
+    - "https://www.ipfire.org/docs/configuration/firewall/ips"
+    - "https://documentation.wazuh.com/5.0-beta/user-manual/data-analysis/detection-workflow.html"
+  supports:
+    - "IPFire suricata-reporter IPv4 UDP alerts with ports"
+  title: "IPFire Suricata reporter decoder"
+parents:
+  - "decoder/core-wazuh-message/0"
+check: >-
+  contains($event.original, " suricata-reporter[")
+  AND contains($event.original, " [Classification: ")
+  AND contains($event.original, "] [Priority: ")
+parse|event.original:
+  - "<event.start/ISO8601> <host.hostname> suricata-reporter[<_ipfire.suricata.pid/long>]: <message>"
+normalize:
+  - parse|message:
+      - "[<_ipfire.suricata.action>] [**] [<_ipfire.suricata.generator_id>:<rule.id>:<rule.version>] <rule.name> [**] [Classification: <rule.category>] [Priority: <event.severity>] {<_ipfire.suricata.transport>} <source.ip>:<source.port> -> <destination.ip>:<destination.port>"
+  - parse|host.hostname:
+      - "<observer.ip>"
+  - map:
+      - event.action: "downcase($_ipfire.suricata.action)"
+      - event.category: "array_append(network, intrusion_detection)"
+      - event.dataset: "ipfire.suricata"
+      - event.kind: "alert"
+      - event.outcome: "success"
+      - event.reason: "$rule.category"
+      - event.type: "array_append(connection, denied)"
+      - network.direction: "inbound"
+      - network.transport: "downcase($_ipfire.suricata.transport)"
+      - network.type: "ipv4"
+      - observer.name: "$host.hostname"
+      - observer.product: "IPFire"
+      - observer.type: "firewall"
+      - observer.vendor: "IPFire Project"
+      - rule.ruleset: "suricata"
+      - source.address: "$source.ip"
+      - destination.address: "$destination.ip"
+      - related.ip: "array_append_any($source.ip, $destination.ip)"
+enabled: true

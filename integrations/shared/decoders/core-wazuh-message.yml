@@ -1,0 +1,17 @@
+name: "decoder/core-wazuh-message/0"
+metadata:
+  author: "Wazuh, Inc."
+  date: "2026-06-10T19:32:11Z"
+  description: >-
+    Shared policy root decoder for the Wazuh message format. Create this asset
+    once in the custom policy; all custom integration decoders inherit from it.
+  documentation: ""
+  modified: "2026-06-10T19:32:11Z"
+  references:
+    - "https://documentation.wazuh.com/5.0-beta/user-manual/data-analysis/detection-workflow.html"
+  supports: []
+  title: "Wazuh message decoder"
+normalize:
+  - map:
+      - _tmp_json: "parse_json($event.original)"
+enabled: true
