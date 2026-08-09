@@ -1,10 +1,8 @@
-# Change Log
-All notable changes to this project will be documented in this file.
-
 ## [v5.0.0]
 
 ### Added
 
+- Set authd password in agents installation. ([#2524](https://github.com/wazuh/wazuh-docker/issues/2524))
 - Added bump-issue-link support for Revert Stage Bump. ([#2505](https://github.com/wazuh/wazuh-docker/pull/2505))
 - Add integration test module docs ([#2491](https://github.com/wazuh/wazuh-docker/pull/2491))
 - Implement the wazuh-docker integration testing module ([#2188](https://github.com/wazuh/wazuh-docker/issues/2188))
@@ -14,6 +12,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Update deployment for Wazuh Indexer 5.0.0 RBAC ([#2537](https://github.com/wazuh/wazuh-docker/issues/2537))
+- Add new WF for changelog check ([#2539](https://github.com/wazuh/wazuh-docker/pull/2539))
 - Change artifact upload and download ([#2502](https://github.com/wazuh/wazuh-docker/issues/2502))
 - Change runners on repository workflows 5.x ([#2471](https://github.com/wazuh/wazuh-docker/issues/2471))
 - PR revamp modifications 5.x ([#2446](https://github.com/wazuh/wazuh-docker/issues/2446))
@@ -64,6 +64,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Fix bumper workflow failure when bump produces no changes ([#2533](https://github.com/wazuh/wazuh-docker/pull/2533))
 - Bumper script issue when the tag is set to false ([#2477](https://github.com/wazuh/wazuh-docker/issues/2477))
 - Fix reported WF vulnerabilities ([#2443](https://github.com/wazuh/wazuh-docker/issues/2443))
 - Adapt Wazuh manager healthcheck with local binaries ([#2422](https://github.com/wazuh/wazuh-docker/issues/2422))

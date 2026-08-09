@@ -1,7 +1,7 @@
 # Wazuh App Copyright (C) 2017, Wazuh Inc. (License GPLv2)
 services:
   wazuh.manager:
-    image: wazuh/wazuh-manager:5.0.0-beta3
+    image: wazuh/wazuh-manager:5.0.0-beta4
     hostname: wazuh.manager
     container_name: single-node-wazuh.manager
     restart: always
@@ -31,8 +31,8 @@ services:
       - WAZUH_NODE_NAME=manager
       - WAZUH_CLUSTER_NODES=wazuh.manager
       - WAZUH_CLUSTER_BIND_ADDR=wazuh.manager
-      - INDEXER_USERNAME=admin
-      - INDEXER_PASSWORD=admin
+      - INDEXER_USERNAME=wazuh-manager
+      - INDEXER_PASSWORD=wazuh-manager
     volumes:
       - wazuh_api_configuration:/var/wazuh-manager/api/configuration
       - wazuh_etc:/var/wazuh-manager/etc
@@ -44,7 +44,7 @@ services:
       - ./config/wazuh_manager/certs/wazuh.manager-key.pem:/var/wazuh-manager/etc/certs/manager-key.pem
 
   wazuh.indexer:
-    image: wazuh/wazuh-indexer:5.0.0-beta3
+    image: wazuh/wazuh-indexer:5.0.0-beta4
     hostname: wazuh.indexer
     container_name: single-node-wazuh.indexer
     restart: always
@@ -81,7 +81,7 @@ services:
       - ./config/wazuh_indexer/certs/admin-key.pem:/usr/share/wazuh-indexer/config/certs/admin-key.pem
 
   wazuh.dashboard:
-    image: wazuh/wazuh-dashboard:5.0.0-beta3
+    image: wazuh/wazuh-dashboard:5.0.0-beta4
     hostname: wazuh.dashboard
     container_name: single-node-wazuh.dashboard
     restart: always
@@ -97,8 +97,6 @@ services:
       - SERVER_PORT=5601
       - SERVER_HOST=0.0.0.0
       - OPENSEARCH_HOSTS=https://wazuh.indexer:9200
-      - INDEXER_USERNAME=admin
-      - INDEXER_PASSWORD=admin
       - WAZUH_API_URL=https://wazuh.manager
       - DASHBOARD_USERNAME=kibanaserver
       - DASHBOARD_PASSWORD=kibanaserver
