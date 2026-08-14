@@ -4,7 +4,7 @@ Wazuh 5 removes raw syslog input from the Manager's `remoted` service. The
 supported architecture uses an external syslog receiver and a separate Wazuh
 agent on the collection host.
 
-Refer to [syslog-input-4x-to-5x.md](https://github.com/wazuh/wazuh/blob/v5.0.0-beta3/docs/guide/migration/syslog-input-4x-to-5x.md) for the upstream migration architecture,
+Refer to [syslog-input-4x-to-5x.md](https://github.com/wazuh/wazuh/blob/v5.0.0-beta4/docs/guide/migration/syslog-input-4x-to-5x.md) for the upstream migration architecture,
 the choice between journald and log-file collection, agent installation, and
 the agent `<localfile>` configuration. Refer to `rules-4x-to-5x.md` when custom
 decoding or rules are required.
@@ -86,10 +86,17 @@ template(
     string="/var/log/remote/%FROMHOST-IP%.log"
 )
 
+template(
+    name="WazuhRemoteFileFormat"
+    type="string"
+    string="%timereported:::date-rfc3339% %HOSTNAME% %syslogtag%%msg:::sp-if-no-1st-sp%%msg:::drop-last-lf%\n"
+)
+
 ruleset(name="remote_to_wazuh_files") {
     action(
         type="omfile"
         dynaFile="RemoteHostLogs"
+        template="WazuhRemoteFileFormat"
         createDirs="on"
         fileCreateMode="0640"
         fileOwner="root"
@@ -104,6 +111,12 @@ input(
 )
 ```
 
+Keep the explicit `WazuhRemoteFileFormat` template. Rsyslog's default file
+template varies by distribution and may emit an RFC 3164 timestamp such as
+`Aug 14 10:15:00`. The repository's IPFire decoders deliberately parse an RFC
+3339 timestamp such as `2026-08-14T10:15:00+07:00`; relying on the host default
+can therefore prevent their `parse|event.original` stage from matching.
+
 If every sender supports reliable TCP syslog, also load `imtcp` and add a TCP
 input to the same ruleset. Expose only the protocols actually used.
 
@@ -113,6 +126,13 @@ Validate and restart:
 rsyslogd -N1
 systemctl restart rsyslog
 ss -ulnp | grep ':514'
+```
+
+After the first event arrives, verify that its stored line begins with an RFC
+3339 timestamp before testing the custom decoder:
+
+```bash
+head -n 1 /var/log/remote/*.log
 ```
 
 Restrict port 514 at the host or network firewall to the expected IPFire source
@@ -128,11 +148,113 @@ Follow the agent installation and log-file collection procedure in
 - Use `127.0.0.1` as the Manager address.
 - Agent traffic reaches the published Manager TCP port 1514.
 - Enrollment reaches the published Manager TCP port 1515.
-- Monitor `/var/log/remote/*.log` using syslog format as described by the
-  upstream guide.
+- Monitor `/var/log/remote/*.log` through this repository's centrally managed
+  `syslog` group configuration.
 
 The Manager container and the host agent are separate Wazuh components even
 though they run on the same physical or virtual host.
+
+### Supply the beta 4 enrollment password
+
+The Manager configuration shipped with Wazuh 5 beta 4 requires a shared
+password for new enrollment. The Manager generates it on first start and keeps
+it in its persistent `wazuh_etc` volume. Retrieve it from the container before
+installing the host agent:
+
+```bash
+docker exec single-node-wazuh.manager \
+  cat /var/wazuh-manager/etc/authd.pass
+```
+
+Treat the output as a secret. Do not commit it or place it in this repository's
+tracked files. Pass it to the Debian package installer so the agent creates its
+own `/var/ossec/etc/authd.pass` with the correct ownership and permissions:
+
+```bash
+sudo WAZUH_MANAGER='127.0.0.1' \
+  WAZUH_REGISTRATION_PASSWORD='<PASSWORD_FROM_MANAGER>' \
+  WAZUH_AGENT_NAME='wazuh-syslog-collector' \
+  WAZUH_AGENT_GROUP='syslog' \
+  dpkg -i ./wazuh-agent_*.deb
+```
+
+The `syslog` group is required because this repository keeps the
+`/var/log/remote/*.log` `<localfile>` block in
+`single-node/tracked-config/wazuh-manager/shared/syslog/agent.conf`. Enrolling in
+the default group alone does not apply that configuration.
+
+Before enrollment, confirm that the Manager has copied the tracked group into
+its persistent configuration:
+
+```bash
+docker exec single-node-wazuh.manager \
+  /var/wazuh-manager/bin/agent_groups -l
+```
+
+If `syslog` is absent, recreate the Manager with the deployment's normal Compose
+files, then repeat the check. Enrollment with a nonexistent group is rejected as
+`Invalid group`.
+
+For an agent package that is already installed but has not enrolled, create the
+password file manually:
+
+```bash
+printf '%s\n' '<PASSWORD_FROM_MANAGER>' \
+  | sudo tee /var/ossec/etc/authd.pass >/dev/null
+sudo chown root:wazuh /var/ossec/etc/authd.pass
+sudo chmod 0640 /var/ossec/etc/authd.pass
+sudo systemctl restart wazuh-agent
+```
+
+The password is needed for enrollment or re-enrollment; established agent
+traffic on port 1514 uses the agent's enrolled key. If enrollment fails, inspect
+both sides for password errors:
+
+```bash
+sudo grep -iE 'enroll|password|auth' /var/ossec/logs/ossec.log | tail -n 30
+docker exec single-node-wazuh.manager \
+  sh -c 'grep -iE "enroll|password|auth" /var/wazuh-manager/logs/wazuh-manager.log | tail -n 30'
+```
+
+An `Invalid password` message means the agent's `authd.pass` does not match the
+current file in the Manager container. Manager restarts reuse the persisted
+password; do not delete `authd.pass` unless intentionally rotating it.
+
+### Assign an existing agent to the syslog group
+
+If the collector was enrolled without `WAZUH_AGENT_GROUP='syslog'`, identify its
+agent ID in the Dashboard or list connected agents from the Manager:
+
+```bash
+docker exec single-node-wazuh.manager \
+  /var/wazuh-manager/bin/agent_control -lc
+```
+
+Append the `syslog` group without replacing any existing group assignments:
+
+```bash
+docker exec single-node-wazuh.manager \
+  /var/wazuh-manager/bin/agent_groups \
+  -a -i <AGENT_ID> -g syslog -q
+```
+
+Verify the group, its centrally managed file, and the agent's logcollector:
+
+```bash
+docker exec single-node-wazuh.manager \
+  /var/wazuh-manager/bin/agent_groups -s -i <AGENT_ID>
+docker exec single-node-wazuh.manager \
+  /var/wazuh-manager/bin/agent_groups -c -g syslog
+sudo grep -E 'Analyzing file.*\/var\/log\/remote' \
+  /var/ossec/logs/ossec.log | tail -n 10
+```
+
+Group configuration is delivered when the agent reconnects. If the analyzing
+message does not appear, restart the host agent once and repeat the checks:
+
+```bash
+sudo systemctl restart wazuh-agent
+```
 
 ## Rotate raw logs
 
@@ -174,6 +296,10 @@ file does not delete an indexed event, and deleting an index does not remove the
 raw file. Apply index retention only to the intended event and findings index
 patterns, not broadly to every `wazuh-*` index.
 
+This deployment's rollover and 14-day indexed-event retention procedure is in
+[Indexer retention](indexer-retention.md). It targets `wazuh-events-v5-*` only;
+findings and Wazuh stateful or internal indices are outside its scope.
+
 ## Keep multiple IPFire instances distinct
 
 `%FROMHOST-IP%` creates a separate file for each directly connected sender:
@@ -185,11 +311,13 @@ patterns, not broadly to every `wazuh-*` index.
 ```
 
 All events still share the identity of the Debian Wazuh agent. Do not use the
-agent name to distinguish the firewalls. In Wazuh 5, use
-`wazuh.protocol.location`, which contains the monitored file path, as the first
-dashboard filter or aggregation field.
+agent name to distinguish the firewalls. The repository's IPFire decoders map
+the syslog hostname to `observer.name` and extract `observer.ip` from the
+`wazuh.protocol.location` filename created from `%FROMHOST-IP%`. A numeric
+syslog hostname is used only as a fallback when location metadata is unavailable,
+as it normally is in Dashboard Log test.
 
-A custom IPFire integration should eventually map the device identity to:
+Use these fields for the firewall identity:
 
 ```text
 observer.ip
@@ -198,6 +326,11 @@ observer.vendor
 observer.product
 observer.type
 ```
+
+`observer.ip` is therefore always an IP value; a named syslog hostname such as
+`ipfire-office` remains in `observer.name` and is never written to the IP-typed
+field. Use `wazuh.protocol.location` as a fallback filter when investigating
+events that were indexed before the custom integration was enabled.
 
 The repository's Wazuh 5 integration and manual installation procedure are in
 [IPFire Netfilter integration](ipfire-netfilter-integration.md).

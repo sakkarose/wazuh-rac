@@ -1,4 +1,4 @@
-# IPFire Netfilter integration for Wazuh 5.0.0-beta3
+# IPFire Netfilter integration for Wazuh 5.0.0-beta4
 
 This procedure creates a custom Wazuh 5 integration for IPFire Netfilter drop
 messages collected from `/var/log/remote/*.log`. It uses the Wazuh Dashboard
@@ -91,7 +91,7 @@ Do not promote to Custom yet.
 2. Open **Security Analytics > Log test**.
 3. Copy one complete line from
    `integrations/ipfire-netfilter/samples/netfilter.samples.txt` into **Log event**.
-4. Run the test and repeat for all four lines.
+4. Run the test and repeat for all five lines.
 
 Each line should show this decoder chain:
 
@@ -118,6 +118,8 @@ The Normalization result should contain at least:
     "type": "ipv4"
   },
   "observer": {
+    "ip": "169.254.254.9",
+    "name": "169.254.254.9",
     "product": "IPFire",
     "type": "firewall",
     "vendor": "IPFire Project"
@@ -138,6 +140,9 @@ The Normalization result should contain at least:
 
 For the UDP fixture, `network.transport` must be `udp`. For the fixture with
 `OUT=`, `observer.egress.interface.name` may be absent; that is expected.
+The named-host fixture must set `observer.name` to `ipfire-office` and must not
+set `observer.ip` during Log test, where `wazuh.protocol.location` is absent.
+For live events, `observer.ip` is extracted from the per-sender filename.
 
 Before continuing, confirm that the Log test result reports no Wazuh Common
 Schema validation errors. If the root decoder matches but the child decoder

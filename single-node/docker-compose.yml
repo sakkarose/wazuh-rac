@@ -25,7 +25,7 @@ services:
       - "1514:1514"
       - "1515:1515"
       #- "514:514/udp" # Remove temporarily to allow rsyslog on host-level.
-      - "55000:55000"
+      - "127.0.0.1:55000:55000"
     environment:
       - WAZUH_INDEXER_HOSTS=wazuh.indexer:9200
       - WAZUH_NODE_NAME=manager
@@ -49,7 +49,7 @@ services:
     container_name: single-node-wazuh.indexer
     restart: always
     ports:
-      - "9200:9200"
+      - "127.0.0.1:9200:9200"
     environment:
       - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
       - bootstrap.memory_lock=true

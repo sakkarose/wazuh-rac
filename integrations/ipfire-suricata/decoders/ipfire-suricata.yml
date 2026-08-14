@@ -6,7 +6,7 @@ metadata:
     Normalizes IPFire suricata-reporter IDS/IPS alerts received through an RFC
     3339 rsyslog relay.
   documentation: "docs/ipfire-suricata-integration.md"
-  modified: "2026-07-22T00:00:00Z"
+  modified: "2026-08-14T00:00:00Z"
   references:
     - "https://www.ipfire.org/docs/configuration/firewall/ips"
     - "https://documentation.wazuh.com/5.0-beta/user-manual/data-analysis/detection-workflow.html"
@@ -24,8 +24,13 @@ parse|event.original:
 normalize:
   - parse|message:
       - "[<_ipfire.suricata.action>] [**] [<_ipfire.suricata.generator_id>:<rule.id>:<rule.version>] <rule.name> [**] [Classification: <rule.category>] [Priority: <event.severity>] {<_ipfire.suricata.transport>} <source.ip>:<source.port> -> <destination.ip>:<destination.port>"
-  - parse|host.hostname:
-      - "<observer.ip>"
+  - parse|wazuh.protocol.location:
+      - "/var/log/remote/<observer.ip>.log"
+  - check: >-
+      NOT exists($observer.ip)
+      AND (is_ipv4($host.hostname) OR is_ipv6($host.hostname))
+    map:
+      - observer.ip: "$host.hostname"
   - map:
       - event.action: "downcase($_ipfire.suricata.action)"
       - event.category: "array_append(network, intrusion_detection)"

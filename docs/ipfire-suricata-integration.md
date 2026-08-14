@@ -62,7 +62,12 @@ destination.ip: 125.212.242.11
 destination.port: 1900
 network.transport: udp
 observer.name: 169.254.254.9
+observer.ip: 169.254.254.9
 ```
+
+For live events, `observer.ip` comes from the `%FROMHOST-IP%` filename exposed
+as `wazuh.protocol.location`. Log test falls back to the syslog hostname only
+when that hostname is a valid IPv4 or IPv6 address.
 
 Confirm Log test reports no Wazuh Common Schema validation errors. Also submit
 an unrelated systemd line and a Netfilter `kernel:` line; neither may produce

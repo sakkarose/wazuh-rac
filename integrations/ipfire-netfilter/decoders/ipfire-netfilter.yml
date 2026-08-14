@@ -6,7 +6,7 @@ metadata:
     Normalizes IPFire Netfilter blacklist and hostile-source packet drops
     received through an RFC 3339 rsyslog relay.
   documentation: "docs/ipfire-netfilter-integration.md"
-  modified: "2026-07-22T00:00:00Z"
+  modified: "2026-08-14T00:00:00Z"
   references:
     - "https://www.ipfire.org/docs/configuration/firewall"
     - "https://documentation.wazuh.com/5.0-beta/user-manual/data-analysis/detection-workflow.html"
@@ -23,8 +23,13 @@ parse|event.original:
 normalize:
   - parse|message:
       - "<rule.name> IN=<?observer.ingress.interface.name> OUT=<?observer.egress.interface.name> MAC=<_ipfire.netfilter.mac_header> SRC=<source.ip> DST=<destination.ip> LEN=<network.bytes> TOS=<_ipfire.netfilter.tos> PREC=<_ipfire.netfilter.precedence> TTL=<_ipfire.netfilter.ttl/long> ID=<_ipfire.netfilter.ip_id/long>(? DF) PROTO=<_ipfire.netfilter.transport> SPT=<source.port> DPT=<destination.port><~>"
-  - parse|host.hostname:
-      - "<observer.ip>"
+  - parse|wazuh.protocol.location:
+      - "/var/log/remote/<observer.ip>.log"
+  - check: >-
+      NOT exists($observer.ip)
+      AND (is_ipv4($host.hostname) OR is_ipv6($host.hostname))
+    map:
+      - observer.ip: "$host.hostname"
   - map:
       - event.action: "packet-dropped"
       - event.category: "array_append(network)"
