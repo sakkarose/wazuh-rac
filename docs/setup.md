@@ -1,7 +1,7 @@
 # Set up a Wazuh Docker host
 
 This guide describes the repository-specific procedure for deploying the
-tracked Wazuh 5.0.0-beta4 single-node stack on a Linux host.
+tracked Wazuh 5.0.0-beta5 single-node stack on a Linux host.
 
 For upstream prerequisites and the standard Docker deployment model, refer to:
 
@@ -105,10 +105,10 @@ nodes:
 EOF
 ```
 
-Download the Wazuh 5.0.0-beta4 certificate tool:
+Download the Wazuh 5.0.0-beta5 certificate tool:
 
 ```bash
-curl -o wazuh-certs-tool.sh https://packages-staging.xdrsiem.wazuh.info/pre-release/5.x/installation-assistant/wazuh-certs-tool-5.0.0-beta4.sh
+curl -o wazuh-certs-tool.sh https://packages-staging.xdrsiem.wazuh.info/pre-release/5.x/installation-assistant/wazuh-certs-tool-5.0.0-beta5.sh
 ```
 
 The downloaded tool is ignored by Git, so it does not block future pulls.
@@ -171,11 +171,11 @@ initialize. Temporary dashboard connection errors for the indexer on port
 
 Reserved users such as `admin`, `wazuh-manager`, and `kibanaserver` cannot be
 changed from the dashboard UI. After the first deployment is healthy, export
-the running beta 4 security configuration, modify only the required hashes, and
+the running beta 5 security configuration, modify only the required hashes, and
 apply its `internal_users.yml` with OpenSearch Security's `securityadmin.sh`.
 
 Do not start from an older release's `internal_users.yml`: applying an incomplete
-file can remove beta 4 service and RBAC identities. Export the complete live
+file can remove beta 5 service and RBAC identities. Export the complete live
 configuration into the ignored local directory:
 
 ```bash
@@ -205,19 +205,19 @@ Generate bcrypt hashes for the new passwords:
 ```bash
 docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
   --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
-  wazuh/wazuh-indexer:5.0.0-beta4 -p 'NewAdminPass1?'
+  wazuh/wazuh-indexer:5.0.0-beta5 -p 'NewAdminPass1?'
 
 docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
   --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
-  wazuh/wazuh-indexer:5.0.0-beta4 -p 'NewManagerPass1?'
+  wazuh/wazuh-indexer:5.0.0-beta5 -p 'NewManagerPass1?'
 
 docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
   --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
-  wazuh/wazuh-indexer:5.0.0-beta4 -p 'NewKibanaServerPass1?'
+  wazuh/wazuh-indexer:5.0.0-beta5 -p 'NewKibanaServerPass1?'
 ```
 
 Replace only the `hash:` values for `admin`, `wazuh-manager`, and
-`kibanaserver`. Preserve every other beta 4 user and property in the exported
+`kibanaserver`. Preserve every other beta 5 user and property in the exported
 file:
 
 ```bash
@@ -297,22 +297,29 @@ The ports that intentionally remain reachable through the host's network
 interfaces are:
 
 ```text
-1514/tcp -> enrolled agent traffic
-1515/tcp -> agent enrollment
+1517/tcp -> Wazuh 5.x agent HTTPS traffic and enrollment
+1514/tcp -> Wazuh 4.x legacy agent traffic during migration only
+1515/tcp -> Wazuh 4.x legacy enrollment during migration only
 443/tcp  -> dashboard
 514      -> host rsyslog, restricted separately to known senders
 ```
+
+The tracked Compose file publishes `1514` and `1515` to support a staged agent
+migration. After every agent uses 5.x HTTPS on `1517`, remove those two
+published ports in the tracked deployment or an intentional override and close
+them at the firewall.
 
 After deploying or updating the stack, verify the effective bindings:
 
 ```bash
 docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml ps
-ss -lntp | grep -E ':(443|1514|1515|9200|55000)\b'
+ss -lntp | grep -E ':(443|1514|1515|1517|9200|55000)\b'
 ```
 
 The output for `9200` and `55000` must show `127.0.0.1`, not `0.0.0.0` or
-`[::]`. Also review the host firewall so `443`, `1514`, and `1515` are reachable
-only from the networks that require them. Do not re-publish either
+`[::]`. Also review the host firewall so `443` and `1517` are reachable only
+from the networks that require them. Permit `1514` and `1515` only while 4.x
+agents still need the legacy channel. Do not re-publish either
 administrative API in a host-local Compose override unless a separately
 protected remote-management path is intentionally required.
 

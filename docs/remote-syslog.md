@@ -4,7 +4,7 @@ Wazuh 5 removes raw syslog input from the Manager's `remoted` service. The
 supported architecture uses an external syslog receiver and a separate Wazuh
 agent on the collection host.
 
-Refer to [syslog-input-4x-to-5x.md](https://github.com/wazuh/wazuh/blob/v5.0.0-beta4/docs/guide/migration/syslog-input-4x-to-5x.md) for the upstream migration architecture,
+Refer to [syslog-input-4x-to-5x.md](https://github.com/wazuh/wazuh/blob/v5.0.0-beta5/docs/guide/migration/syslog-input-4x-to-5x.md) for the upstream migration architecture,
 the choice between journald and log-file collection, agent installation, and
 the agent `<localfile>` configuration. Refer to `rules-4x-to-5x.md` when custom
 decoding or rules are required.
@@ -18,7 +18,7 @@ IPFire instances
     -> UDP or TCP 514 on host rsyslog
     -> /var/log/remote/<sender-ip>.log
     -> Wazuh agent installed on the Debian host
-    -> TCP 1514 to the Wazuh Manager container
+    -> HTTPS 1517 to the Wazuh Manager container
     -> Wazuh Indexer and dashboard
 ```
 
@@ -146,17 +146,16 @@ Follow the agent installation and log-file collection procedure in
 
 - Install the agent on Debian, not in the Manager container.
 - Use `127.0.0.1` as the Manager address.
-- Agent traffic reaches the published Manager TCP port 1514.
-- Enrollment reaches the published Manager TCP port 1515.
+- Agent traffic and enrollment both use the published Manager HTTPS port 1517.
 - Monitor `/var/log/remote/*.log` through this repository's centrally managed
   `syslog` group configuration.
 
 The Manager container and the host agent are separate Wazuh components even
 though they run on the same physical or virtual host.
 
-### Supply the beta 4 enrollment password
+### Supply the beta 5 enrollment password
 
-The Manager configuration shipped with Wazuh 5 beta 4 requires a shared
+The Manager configuration shipped with Wazuh 5 beta 5 requires a shared
 password for new enrollment. The Manager generates it on first start and keeps
 it in its persistent `wazuh_etc` volume. Retrieve it from the container before
 installing the host agent:
@@ -171,7 +170,7 @@ tracked files. Pass it to the Debian package installer so the agent creates its
 own `/var/ossec/etc/authd.pass` with the correct ownership and permissions:
 
 ```bash
-sudo WAZUH_MANAGER='127.0.0.1' \
+sudo WAZUH_MANAGER_ENDPOINT='127.0.0.1:1517/wazuh-manager/' \
   WAZUH_REGISTRATION_PASSWORD='<PASSWORD_FROM_MANAGER>' \
   WAZUH_AGENT_NAME='wazuh-syslog-collector' \
   WAZUH_AGENT_GROUP='syslog' \
@@ -206,9 +205,10 @@ sudo chmod 0640 /var/ossec/etc/authd.pass
 sudo systemctl restart wazuh-agent
 ```
 
-The password is needed for enrollment or re-enrollment; established agent
-traffic on port 1514 uses the agent's enrolled key. If enrollment fails, inspect
-both sides for password errors:
+The password is needed for enrollment or re-enrollment. After enrollment, the
+same HTTPS endpoint carries control messages, events, configuration downloads,
+tasks, and upgrades using the agent's enrolled key. If enrollment fails,
+inspect both sides for password or HTTPS errors:
 
 ```bash
 sudo grep -iE 'enroll|password|auth' /var/ossec/logs/ossec.log | tail -n 30
@@ -249,12 +249,41 @@ sudo grep -E 'Analyzing file.*\/var\/log\/remote' \
   /var/ossec/logs/ossec.log | tail -n 10
 ```
 
-Group configuration is delivered when the agent reconnects. If the analyzing
-message does not appear, restart the host agent once and repeat the checks:
+In beta 5, the manager advertises a changed configuration hash in the periodic
+`/control` response and the agent downloads the group configuration over
+`/download`. If the analyzing message does not appear after the next control
+cycle, restart the host agent once and repeat the checks:
 
 ```bash
 sudo systemctl restart wazuh-agent
 ```
+
+### Upgrade an existing beta 4 collector agent
+
+Keep Manager ports `1514` and `1515` available until the collector has been
+upgraded. Before installing the beta 5 package, back up the agent configuration
+and confirm that the beta 5 endpoint is reachable:
+
+```bash
+sudo cp -a /var/ossec/etc/ossec.conf /var/ossec/etc/ossec.conf.beta4-backup
+curl --fail --insecure https://127.0.0.1:1517/wazuh-manager/
+```
+
+The package upgrade preserves `ossec.conf`. A legacy
+`<client><server><address>` still supplies the address and beta 5 defaults its
+port to `1517`, but the supported end state is the unified endpoint:
+
+```xml
+<agent>
+  <manager>
+    <endpoint>127.0.0.1:1517/wazuh-manager/</endpoint>
+  </manager>
+</agent>
+```
+
+After upgrading, verify that the agent connects over `1517`, receives the
+`syslog` group, and sends a new remote-syslog event before retiring the legacy
+ports.
 
 ## Rotate raw logs
 

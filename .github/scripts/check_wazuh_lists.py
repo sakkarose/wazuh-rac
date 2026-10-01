@@ -5,8 +5,8 @@ from collections import defaultdict
 from pathlib import Path
 
 
-RULES_DIR = Path("single-node/provisioning/wazuh_manager/etc/rules")
-LISTS_DIR = Path("single-node/provisioning/wazuh_manager/etc/lists")
+RULES_DIR = Path("provisioning-archive/wazuh_manager/etc/rules")
+LISTS_DIR = Path("provisioning-archive/wazuh_manager/etc/lists")
 SHA256_RE = re.compile(r"^[A-Fa-f0-9]{64}$")
 
 
@@ -52,6 +52,10 @@ def main() -> int:
     errors = []
     warnings = []
     referenced = list(iter_list_references())
+
+    if not list(RULES_DIR.glob("*.xml")):
+        print(f"No archived rule files found under {RULES_DIR}; refusing to pass an empty check.")
+        return 1
 
     for rule_file, field, list_path in referenced:
         if not list_path.startswith("etc/lists/"):

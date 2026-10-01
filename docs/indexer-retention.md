@@ -1,6 +1,6 @@
 # Retain Wazuh event data for 14 days
 
-Wazuh 5 beta 4 writes decoded events to data streams named
+Wazuh 5 beta 5 writes decoded events to data streams named
 `wazuh-events-v5-*`. Each data stream contains hidden backing indices. A delete
 policy without rollover cannot remove the current write index, so this
 repository's policy performs both operations:

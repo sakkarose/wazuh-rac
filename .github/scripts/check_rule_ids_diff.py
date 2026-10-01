@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 from collections import defaultdict, Counter
 
-RULES_PATH = Path("single-node/provisioning/wazuh_manager/etc/rules")
+RULES_PATH = Path("provisioning-archive/wazuh_manager/etc/rules")
 
 def run_git_command(args):
     result = subprocess.run(args, capture_output=True, text=True, check=True)

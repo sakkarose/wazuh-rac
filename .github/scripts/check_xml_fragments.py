@@ -4,8 +4,8 @@ from pathlib import Path
 
 
 PATHS = [
-    Path("single-node/provisioning/wazuh_manager/etc/rules"),
-    Path("single-node/provisioning/wazuh_manager/etc/decoders"),
+    Path("provisioning-archive/wazuh_manager/etc/rules"),
+    Path("provisioning-archive/wazuh_manager/etc/decoders"),
 ]
 
 
@@ -21,6 +21,10 @@ def main() -> int:
     files = []
     for base in PATHS:
         files.extend(sorted(base.glob("*.xml")))
+
+    if not files:
+        print("No archived XML fragments found; refusing to pass an empty check.")
+        return 1
 
     for path in files:
         try:

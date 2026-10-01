@@ -3,7 +3,7 @@ from pathlib import Path
 import sys
 from collections import defaultdict
 
-RULES_PATH = Path("single-node/provisioning/wazuh_manager/etc/rules")
+RULES_PATH = Path("provisioning-archive/wazuh_manager/etc/rules")
 
 def extract_rule_ids_from_xml(content):
     ids = []
@@ -38,6 +38,9 @@ def get_all_rule_ids():
 def main():
     print("🔍 Checking all rule files for duplicate/conflicting rule IDs...")
     all_files = list(RULES_PATH.glob("*.xml"))
+    if not all_files:
+        print(f"❌ No rule files found under {RULES_PATH}")
+        sys.exit(1)
     print(f"Found {len(all_files)} rule files:")
     for file in all_files:
         print(f"  • {file.name}")

@@ -58,10 +58,96 @@ install -m 0600 compose.production.yml "$BACKUP_DIR/compose.production.yml"
 
 This local copy does not replace an off-host backup. Back up the persistent
 Docker volumes as required by `backup-and-restore.md` before a Wazuh version
-upgrade.
+upgrade. Include `wazuh-dashboard-config`: beta 5 stores the randomly generated
+`wazuh_ai_assistant.encryptionKey` in that volume. Replacing the keystore with a
+new one makes data encrypted with the previous key unreadable.
 
 Do not use `docker compose down -v` during an update or upgrade unless deleting
 the persistent deployment data is explicitly intended.
+
+## Migrate an existing beta 4 Manager to beta 5
+
+Do not start the beta 5 Manager against an unreviewed beta 4 `wazuh_etc`
+volume. The volume preserves `wazuh-manager.conf`, so changing the image tag
+does not install the beta 5 default configuration over it. In particular, beta
+4 has a flat `<remote>` block, legacy `sslmanager.*` certificate paths, and an
+`ssl_auto_negotiate` option that beta 5 no longer accepts.
+
+While the beta 4 deployment is still healthy, export the live configuration
+and enrollment state into the permission-restricted backup directory:
+
+```bash
+cd single-node
+install -d -m 0700 config-local/beta4-to-beta5
+docker cp single-node-wazuh.manager:/var/wazuh-manager/etc/wazuh-manager.conf \
+  config-local/beta4-to-beta5/wazuh-manager.conf.beta4
+docker cp single-node-wazuh.manager:/var/wazuh-manager/etc/client.keys \
+  config-local/beta4-to-beta5/client.keys
+docker cp single-node-wazuh.manager:/var/wazuh-manager/etc/authd.pass \
+  config-local/beta4-to-beta5/authd.pass
+cp -a config-local/beta4-to-beta5/wazuh-manager.conf.beta4 \
+  config-local/beta4-to-beta5/wazuh-manager.conf.beta5
+```
+
+Edit only the necessary sections of
+`config-local/beta4-to-beta5/wazuh-manager.conf.beta5`; retain unrelated local
+settings. The beta 5 transport blocks must have this shape:
+
+```xml
+<remote>
+  <https>
+    <port>1517</port>
+    <bind_addr>0.0.0.0</bind_addr>
+    <global_prefix>/wazuh-manager/</global_prefix>
+    <certificate>etc/certs/remoted.pem</certificate>
+    <key>etc/certs/remoted-key.pem</key>
+  </https>
+
+  <legacy>
+    <enabled>yes</enabled>
+    <port>1514</port>
+    <protocol>tcp</protocol>
+    <local_ip>0.0.0.0</local_ip>
+  </legacy>
+
+  <agents>
+    <allow_higher_versions>no</allow_higher_versions>
+  </agents>
+</remote>
+```
+
+In `<auth>`, remove `ssl_auto_negotiate` and set both certificate paths to the
+same Manager identity:
+
+```xml
+<ssl_manager_cert>etc/certs/remoted.pem</ssl_manager_cert>
+<ssl_manager_key>etc/certs/remoted-key.pem</ssl_manager_key>
+```
+
+Install the reviewed file into the persistent volume while the beta 4
+container still exists. The running process does not reread it; stop the stack
+immediately afterward so beta 4 is never restarted with the beta 5 file:
+
+```bash
+docker cp config-local/beta4-to-beta5/wazuh-manager.conf.beta5 \
+  single-node-wazuh.manager:/tmp/wazuh-manager.conf.beta5
+docker exec single-node-wazuh.manager \
+  install -o root -g wazuh-manager -m 0640 \
+  /tmp/wazuh-manager.conf.beta5 \
+  /var/wazuh-manager/etc/wazuh-manager.conf
+docker compose --env-file .env.production \
+  -f docker-compose.yml -f compose.production.yml down
+```
+
+Do not delete `wazuh_etc`; it also holds `client.keys`, `authd.pass`, agent group
+configuration, and other state required by existing agents. On the first beta
+5 start, the Manager container generates `etc/certs/remoted.pem` and
+`remoted-key.pem` when neither file exists.
+
+Before starting, verify that the effective Compose configuration publishes
+`1517/tcp` and mounts the Indexer connector certificate at
+`etc/certs/indexer-connector.pem`, not the old `manager.pem` destination. Then
+pull and start the beta 5 images using the commands below.
 
 ## Deploy a repository update
 
@@ -157,10 +243,16 @@ Then verify:
 - The indexer, Manager, and dashboard are healthy.
 - Dashboard login works with the host-local credentials.
 - Existing agents reconnect.
+- Wazuh 5.x agents use HTTPS port `1517`; only agents awaiting migration use
+  legacy ports `1514` and `1515`.
 - Expected enrollment groups remain available.
 - Existing indexed data is visible.
 - Ports `9200` and `55000` listen only on `127.0.0.1`.
 - The event-retention policy remains attached and has no failed actions.
+- Custom-space CMSync completes without route-build errors.
+- Every saved IPFire Netfilter and Suricata fixture passes Log test, the
+  negative fixtures remain rejected, and one new live event from each source
+  reaches its expected event stream.
 
 ## Version-upgrade boundary
 

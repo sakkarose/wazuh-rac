@@ -1,7 +1,14 @@
 name: Content static checks
 
 on:
-  # Temporarily manual-only while provisioning config is archived at the repo root.
+  pull_request:
+    paths:
+      - 'integrations/**'
+      - 'single-node/indexer-policies/**'
+      - 'single-node/tracked-config/**'
+      - 'provisioning-archive/**'
+      - '.github/scripts/**'
+      - '.github/workflows/content-static-checks.yml'
   workflow_dispatch:
 
 jobs:
@@ -21,9 +28,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y yara
+          python -m pip install --disable-pip-version-check PyYAML
 
       - name: Python syntax
         run: python -m py_compile .github/scripts/*.py
+
+      - name: Active integration assets
+        run: python .github/scripts/check_integration_assets.py
 
       - name: XML fragment syntax
         run: python .github/scripts/check_xml_fragments.py
@@ -42,5 +53,5 @@ jobs:
 
       - name: YARA syntax
         run: |
-          yara -w single-node/provisioning/wazuh_endpoint/windows/yara/yara_rules_append.yar /dev/null
-          yara -w single-node/provisioning/wazuh_endpoint/windows/yara/yara_rules.yar /dev/null
+          yara -w provisioning-archive/wazuh_endpoint/windows/yara/yara_rules_append.yar /dev/null
+          yara -w provisioning-archive/wazuh_endpoint/windows/yara/yara_rules.yar /dev/null

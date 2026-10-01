@@ -1,6 +1,6 @@
 # Wazuh Docker Host Provisioning
 
-This repository provisions a Wazuh Docker 5.0.0-beta4 single-node deployment.
+This repository provisions a Wazuh Docker 5.0.0-beta5 single-node deployment.
 It is intended to be cloned directly on each deployed host. Tracked files keep
 the deployment consistent, while real credentials and host-specific overrides
 remain in ignored local files.
@@ -32,7 +32,7 @@ deployed.
 - `single-node/compose.*.yml` files are ignored and contain host-specific
   Compose overrides.
 - `single-node/config-local/` is ignored and can contain local security files,
-  such as an exported and edited beta 4 `internal_users.yml`.
+  such as an exported and edited beta 5 `internal_users.yml`.
 - `provisioning-archive/` is retained as migration reference material and is
   not part of the active deployment.
 

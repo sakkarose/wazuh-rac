@@ -1,4 +1,4 @@
-# IPFire Netfilter integration for Wazuh 5.0.0-beta4
+# IPFire Netfilter integration for Wazuh 5.0.0-beta5
 
 This procedure creates a custom Wazuh 5 integration for IPFire Netfilter drop
 messages collected from `/var/log/remote/*.log`. It uses the Wazuh Dashboard
@@ -24,8 +24,6 @@ with the `security` category.
   policy root. Create this decoder only once, preferably in a dedicated
   `custom-core` integration. Source integrations reuse it as a parent and must
   not create another copy.
-  decoder required by the custom policy. Its check deliberately rejects every
-  event that is not an IPFire `BLKLST_*` or `DROP_HOSTILE` record.
 - `integrations/ipfire-netfilter/decoders/ipfire-netfilter.yml`: IPFire child
   decoder.
 - `integrations/ipfire-netfilter/samples/netfilter.samples.txt`: sanitized logtest

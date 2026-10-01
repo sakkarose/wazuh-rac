@@ -43,10 +43,13 @@ RUN dnf install openssl findutils procps shadow-utils -y && \
     chown root:wazuh-manager /var/wazuh-manager/var/multigroups && \
     chmod 770 /var/wazuh-manager/var/multigroups && \
     mkdir -p /var/wazuh-manager/etc/certs && \
-    chown wazuh-manager:wazuh-manager /var/wazuh-manager/etc/certs && \
-    chmod 500 /var/wazuh-manager/etc/certs && \
-    rm -f /var/wazuh-manager/etc/sslmanager.key && \
-    rm -f /var/wazuh-manager/etc/sslmanager.cert
+    chown root:wazuh-manager /var/wazuh-manager/etc/certs && \
+    chmod 1770 /var/wazuh-manager/etc/certs && \
+    # Remove manager self-signed certificate/key
+    rm -f /var/wazuh-manager/etc/certs/remoted.pem \
+          /var/wazuh-manager/etc/certs/remoted-key.pem \
+          /var/wazuh-manager/etc/certs/apid.pem \
+          /var/wazuh-manager/etc/certs/apid-key.pem
 
 # Prepare permanent data snapshot (sync calls: https://github.com/docker/docker/issues/9547)
 RUN chmod 755 /permanent_data.sh && \
@@ -96,6 +99,12 @@ COPY config/permanent_data.env /
 RUN chmod 755 /entrypoint.sh
 
 # Services ports
-EXPOSE 55000/tcp 1514/tcp 1515/tcp 514/udp 1516/tcp
+#   1517/tcp: agent communication and enrollment (Wazuh 5.x agents, HTTPS)
+#   1514/tcp: agent communication for Wazuh 4.x agents (legacy remoted)
+#   1515/tcp: agent enrollment for Wazuh 4.x agents (authd)
+#   514/udp:  syslog event collection
+#   1516/tcp: cluster communication between manager nodes
+#   55000/tcp: Wazuh API
+EXPOSE 55000/tcp 1517/tcp 1514/tcp 1515/tcp 514/udp 1516/tcp
 
 ENTRYPOINT ["/usr/local/bin/tini", "--", "/entrypoint.sh"]
