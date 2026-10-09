@@ -9,7 +9,7 @@ metadata:
   modified: "2026-08-14T00:00:00Z"
   references:
     - "https://www.ipfire.org/docs/configuration/firewall/ips"
-    - "https://documentation.wazuh.com/5.0-beta/user-manual/data-analysis/detection-workflow.html"
+    - "https://github.com/wazuh/wazuh/blob/v5.0.0-rc1/docs/ref/modules/engine/README.md"
   supports:
     - "IPFire suricata-reporter IPv4 UDP alerts with ports"
   title: "IPFire Suricata reporter decoder"

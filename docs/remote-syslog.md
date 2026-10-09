@@ -4,7 +4,7 @@ Wazuh 5 removes raw syslog input from the Manager's `remoted` service. The
 supported architecture uses an external syslog receiver and a separate Wazuh
 agent on the collection host.
 
-Refer to [syslog-input-4x-to-5x.md](https://github.com/wazuh/wazuh/blob/v5.0.0-beta5/docs/guide/migration/syslog-input-4x-to-5x.md) for the upstream migration architecture,
+Refer to [syslog-input-4x-to-5x.md](https://github.com/wazuh/wazuh/blob/v5.0.0-rc1/docs/guide/migration/syslog-input-4x-to-5x.md) for the upstream migration architecture,
 the choice between journald and log-file collection, agent installation, and
 the agent `<localfile>` configuration. Refer to `rules-4x-to-5x.md` when custom
 decoding or rules are required.
@@ -153,27 +153,25 @@ Follow the agent installation and log-file collection procedure in
 The Manager container and the host agent are separate Wazuh components even
 though they run on the same physical or virtual host.
 
-### Supply the beta 5 enrollment password
+### Enroll with an RC1 token
 
-The Manager configuration shipped with Wazuh 5 beta 5 requires a shared
-password for new enrollment. The Manager generates it on first start and keeps
-it in its persistent `wazuh_etc` volume. Retrieve it from the container before
-installing the host agent:
+RC1 removes password-based enrollment. Mint a short-lived token for the exact
+address the host agent will use. That address must be present in the Manager
+listener certificate SAN. `--embed-ca` lets the agent pin the deployment CA:
 
 ```bash
-docker exec single-node-wazuh.manager \
-  cat /var/wazuh-manager/etc/authd.pass
+set WAZUH_ENROLLMENT_TOKEN (docker exec single-node-wazuh.manager \
+  /var/wazuh-manager/bin/wazuh-manager-authd \
+  --create-enrollment-token --address 127.0.0.1 --ttl 1h --max-uses 1 --embed-ca)
 ```
 
-Treat the output as a secret. Do not commit it or place it in this repository's
-tracked files. Pass it to the Debian package installer so the agent creates its
-own `/var/ossec/etc/authd.pass` with the correct ownership and permissions:
+The `set` syntax above is for fish. Treat the token as a secret and do not put
+it in a tracked file. Pass it to the Debian package installer with `env`:
 
 ```bash
-sudo WAZUH_MANAGER_ENDPOINT='127.0.0.1:1517/wazuh-manager/' \
-  WAZUH_REGISTRATION_PASSWORD='<PASSWORD_FROM_MANAGER>' \
-  WAZUH_AGENT_NAME='wazuh-syslog-collector' \
-  WAZUH_AGENT_GROUP='syslog' \
+sudo env WAZUH_ENROLLMENT_TOKEN="$WAZUH_ENROLLMENT_TOKEN" \
+  WAZUH_AGENT_NAME=wazuh-syslog-collector \
+  WAZUH_AGENT_GROUP=syslog \
   dpkg -i ./wazuh-agent_*.deb
 ```
 
@@ -194,31 +192,31 @@ If `syslog` is absent, recreate the Manager with the deployment's normal Compose
 files, then repeat the check. Enrollment with a nonexistent group is rejected as
 `Invalid group`.
 
-For an agent package that is already installed but has not enrolled, create the
-password file manually:
+For an RC1 agent package that is already installed but not enrolled, write the
+token to a root-only temporary file and run the agent enrollment client:
 
 ```bash
-printf '%s\n' '<PASSWORD_FROM_MANAGER>' \
-  | sudo tee /var/ossec/etc/authd.pass >/dev/null
-sudo chown root:wazuh /var/ossec/etc/authd.pass
-sudo chmod 0640 /var/ossec/etc/authd.pass
+printf '%s\n' "$WAZUH_ENROLLMENT_TOKEN" | sudo tee /tmp/wazuh-enrollment.token >/dev/null
+sudo chmod 0600 /tmp/wazuh-enrollment.token
+sudo /var/ossec/bin/wazuh-agent-auth --token-file /tmp/wazuh-enrollment.token
+sudo rm /tmp/wazuh-enrollment.token
 sudo systemctl restart wazuh-agent
 ```
 
-The password is needed for enrollment or re-enrollment. After enrollment, the
-same HTTPS endpoint carries control messages, events, configuration downloads,
-tasks, and upgrades using the agent's enrolled key. If enrollment fails,
-inspect both sides for password or HTTPS errors:
+After enrollment, the same HTTPS endpoint carries control messages, events,
+configuration downloads, tasks, and upgrades using the agent-specific
+reenrollment secret. If enrollment fails, inspect both sides for token or TLS
+errors:
 
 ```bash
-sudo grep -iE 'enroll|password|auth' /var/ossec/logs/ossec.log | tail -n 30
+sudo grep -iE 'enroll|token|certificate|auth' /var/ossec/logs/ossec.log | tail -n 30
 docker exec single-node-wazuh.manager \
-  sh -c 'grep -iE "enroll|password|auth" /var/wazuh-manager/logs/wazuh-manager.log | tail -n 30'
+  sh -c 'grep -iE "enroll|token|certificate|auth" /var/wazuh-manager/logs/wazuh-manager.log | tail -n 30'
 ```
 
-An `Invalid password` message means the agent's `authd.pass` does not match the
-current file in the Manager container. Manager restarts reuse the persisted
-password; do not delete `authd.pass` unless intentionally rotating it.
+A refused token may be expired, revoked, already consumed, malformed, or name
+an address outside the certificate SAN. Mint a new single-use token after
+correcting the cause; do not restore the beta 5 `authd.pass` mechanism.
 
 ### Assign an existing agent to the syslog group
 
@@ -249,7 +247,7 @@ sudo grep -E 'Analyzing file.*\/var\/log\/remote' \
   /var/ossec/logs/ossec.log | tail -n 10
 ```
 
-In beta 5, the manager advertises a changed configuration hash in the periodic
+In RC1, the manager advertises a changed configuration hash in the periodic
 `/control` response and the agent downloads the group configuration over
 `/download`. If the analyzing message does not appear after the next control
 cycle, restart the host agent once and repeat the checks:
@@ -258,11 +256,11 @@ cycle, restart the host agent once and repeat the checks:
 sudo systemctl restart wazuh-agent
 ```
 
-### Upgrade an existing beta 4 collector agent
+### Upgrade an existing pre-RC1 collector agent
 
 Keep Manager ports `1514` and `1515` available until the collector has been
-upgraded. Before installing the beta 5 package, back up the agent configuration
-and confirm that the beta 5 endpoint is reachable:
+upgraded. Before installing the RC1 package, back up the agent configuration
+and confirm that the RC1 endpoint is reachable:
 
 ```bash
 sudo cp -a /var/ossec/etc/ossec.conf /var/ossec/etc/ossec.conf.beta4-backup
@@ -270,7 +268,7 @@ curl --fail --insecure https://127.0.0.1:1517/wazuh-manager/
 ```
 
 The package upgrade preserves `ossec.conf`. A legacy
-`<client><server><address>` still supplies the address and beta 5 defaults its
+`<client><server><address>` still supplies the address and RC1 defaults its
 port to `1517`, but the supported end state is the unified endpoint:
 
 ```xml

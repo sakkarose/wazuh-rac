@@ -1,7 +1,7 @@
 # Wazuh App Copyright (C) 2017, Wazuh Inc. (License GPLv2)
 services:
   wazuh.manager:
-    image: wazuh/wazuh-manager:5.0.0-beta5
+    image: wazuh/wazuh-manager:5.0.0-rc1
     hostname: wazuh.manager
     container_name: single-node-wazuh.manager
     restart: always
@@ -9,7 +9,7 @@ services:
       wazuh.indexer:
         condition: service_healthy
     healthcheck:
-      test: [ "CMD-SHELL", "/var/wazuh-manager/bin/wazuh-manager-control status 2>/dev/null | grep -q 'not running' && exit 1 || exit 0" ]
+      test: [ "CMD", "/var/wazuh-manager/bin/wazuh-manager-control", "status" ]
       interval: 15s
       timeout: 5s
       retries: 5
@@ -25,38 +25,46 @@ services:
       - "1517:1517"
       - "1514:1514"
       - "1515:1515"
-      #- "514:514/udp" # Remove temporarily to allow rsyslog on host-level.
+      #- "514:514/udp" # Reserved for host-level rsyslog.
       - "127.0.0.1:55000:55000"
+    secrets:
+      - source: manager_credentials
+        target: wazuh-credentials
     environment:
       - WAZUH_INDEXER_HOSTS=wazuh.indexer:9200
       - WAZUH_NODE_NAME=manager
       - WAZUH_CLUSTER_NODES=wazuh.manager
       - WAZUH_CLUSTER_BIND_ADDR=wazuh.manager
-      - INDEXER_USERNAME=wazuh-manager
-      - INDEXER_PASSWORD=wazuh-manager
     volumes:
       - wazuh_api_configuration:/var/wazuh-manager/api/configuration
       - wazuh_etc:/var/wazuh-manager/etc
       - wazuh_logs:/var/wazuh-manager/logs
       - wazuh_queue:/var/wazuh-manager/queue
       - wazuh_var_multigroups:/var/wazuh-manager/var/multigroups
+      - wazuh_data:/var/wazuh-manager/data
       - ./config/root-ca/certs/root-ca.pem:/var/wazuh-manager/etc/certs/root-ca.pem
       - ./config/wazuh_manager/certs/wazuh.manager.pem:/var/wazuh-manager/etc/certs/indexer-connector.pem
       - ./config/wazuh_manager/certs/wazuh.manager-key.pem:/var/wazuh-manager/etc/certs/indexer-connector-key.pem
+      - ./config/wazuh_manager/certs/wazuh.manager-remoted.pem:/var/wazuh-manager/etc/certs/remoted.pem
+      - ./config/wazuh_manager/certs/wazuh.manager-remoted-key.pem:/var/wazuh-manager/etc/certs/remoted-key.pem
 
   wazuh.indexer:
-    image: wazuh/wazuh-indexer:5.0.0-beta5
+    image: wazuh/wazuh-indexer:5.0.0-rc1
     hostname: wazuh.indexer
     container_name: single-node-wazuh.indexer
     restart: always
     ports:
       - "127.0.0.1:9200:9200"
+    secrets:
+      - source: indexer_credentials
+        target: wazuh-credentials
     environment:
       - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
       - bootstrap.memory_lock=true
       - network.host=0.0.0.0
       - node.name=wazuh.indexer
       - cluster.initial_cluster_manager_nodes=wazuh.indexer
+      - discovery.seed_hosts=wazuh.indexer
       - node.max_local_storage_nodes=1
       - plugins.security.allow_default_init_securityindex=true
       - NODES_DN=CN=wazuh.indexer,OU=Wazuh,O=Wazuh,L=California,C=US
@@ -82,25 +90,26 @@ services:
       - ./config/wazuh_indexer/certs/admin-key.pem:/usr/share/wazuh-indexer/config/certs/admin-key.pem
 
   wazuh.dashboard:
-    image: wazuh/wazuh-dashboard:5.0.0-beta5
+    image: wazuh/wazuh-dashboard:5.0.0-rc1
     hostname: wazuh.dashboard
     container_name: single-node-wazuh.dashboard
     restart: always
     healthcheck:
-      test: [ "CMD", "curl", "-k", "-s", "-o", "/dev/null", "https://localhost:5601/login" ]
+      test: [ "CMD", "curl", "-f", "-k", "-s", "-o", "/dev/null", "https://localhost:5601/app/login" ]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
     ports:
       - 443:5601
+    secrets:
+      - source: dashboard_credentials
+        target: wazuh-credentials
     environment:
       - SERVER_PORT=5601
       - SERVER_HOST=0.0.0.0
       - OPENSEARCH_HOSTS=https://wazuh.indexer:9200
       - WAZUH_API_URL=https://wazuh.manager
-      - DASHBOARD_USERNAME=kibanaserver
-      - DASHBOARD_PASSWORD=kibanaserver
       - SERVER_SSL_CERTIFICATE=/usr/share/wazuh-dashboard/config/certs/dashboard.pem
       - SERVER_SSL_KEY=/usr/share/wazuh-dashboard/config/certs/dashboard-key.pem
       - OPENSEARCH_SSL_CERTIFICATE_AUTHORITIES=/usr/share/wazuh-dashboard/config/certs/root-ca.pem
@@ -116,12 +125,21 @@ services:
       wazuh.manager:
         condition: service_healthy
 
+secrets:
+  indexer_credentials:
+    file: ./config/credentials/indexer.env
+  manager_credentials:
+    file: ./config/credentials/manager.env
+  dashboard_credentials:
+    file: ./config/credentials/dashboard.env
+
 volumes:
   wazuh_api_configuration:
   wazuh_etc:
   wazuh_logs:
   wazuh_queue:
   wazuh_var_multigroups:
+  wazuh_data:
   wazuh-indexer-data:
   wazuh-dashboard-config:
   wazuh-dashboard-custom:

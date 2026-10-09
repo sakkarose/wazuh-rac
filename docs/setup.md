@@ -1,95 +1,39 @@
 # Set up a Wazuh Docker host
 
-This guide describes the repository-specific procedure for deploying the
-tracked Wazuh 5.0.0-beta5 single-node stack on a Linux host.
+This guide deploys this repository's Wazuh 5.0.0-rc1 single-node stack on a
+Linux host. RC1 has no default deployment passwords and the Manager no longer
+creates its agent-listener certificate at startup. Certificates and credential
+files must therefore exist before the first `docker compose up`.
 
-For upstream prerequisites and the standard Docker deployment model, refer to:
-
-- `requirements.md`
-- `single-node.md`
-- `configuration.md`
-- `environment-variables.md`
-
-## Clone the repository
+## Prepare the host
 
 ```bash
 git clone https://github.com/sakkarose/wazuh-rac.git
 cd wazuh-rac/single-node
-```
-
-## Prepare the Linux host
-
-Set `vm.max_map_count` before starting Wazuh. The Wazuh indexer needs a higher
-virtual-memory map limit than the Linux default.
-
-```bash
 sudo sysctl -w vm.max_map_count=262144
-```
-
-If this value is lower than `262144`, the indexer may fail or behave
-incorrectly. Make the setting persistent using the normal sysctl configuration
-mechanism for the host operating system.
-
-To run Docker as a non-root user, add that user to the `docker` group:
-
-```bash
-sudo usermod -aG docker <USER>
-```
-
-Replace `<USER>` with the account name, then log out and back in for the group
-change to take effect.
-
-## Create host-local files
-
-Copy the example environment file to an ignored host-local file:
-
-```bash
 cp example.env .env.staging
-```
-
-Use another name where appropriate, such as `.env.production`.
-
-For the first startup, leave these stock indexer users unchanged:
-
-```text
-admin / admin
-wazuh-manager / wazuh-manager
-kibanaserver / kibanaserver
-```
-
-The Manager uses the restricted `wazuh-manager` service identity; it must not
-connect as `admin`. Start the stack once with the stock values, then change all
-three passwords after the containers are healthy.
-
-Copy the example Compose override to an ignored host-local file:
-
-```bash
 cp example.compose.yml compose.staging.yml
 ```
 
-Review both local files:
+Make `vm.max_map_count=262144` persistent using the host's normal sysctl
+configuration. The environment example intentionally contains no passwords;
+RC1 supplies credentials as Compose secrets.
+
+## Create certificates
+
+Download the RC1-compatible certificate tool and credentials library:
 
 ```bash
-nano .env.staging
-nano compose.staging.yml
+curl -o wazuh-certs-tool.sh \
+  https://packages.wazuh.com/5.0/wazuh-certs-tool-5.0.0-1.sh
+curl -o wazuh-credentials.sh \
+  https://packages.wazuh.com/5.0/wazuh-credentials-5.0.0-1.sh
 ```
 
-Docker Compose merges files from left to right. The tracked
-`docker-compose.yml` is the base file; the host-local file overrides only the
-fields it defines.
+Create the ignored `config.yml`. Every address that an agent uses to reach
+port 1517 must be a Subject Alternative Name of the Manager certificate:
 
-Preview the effective configuration:
-
-```bash
-docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml config
-```
-
-## Prepare certificates
-
-Create the certificate configuration:
-
-```bash
-cat > config.yml <<'EOF'
+```yaml
 nodes:
   indexer:
     - name: wazuh.indexer
@@ -97,248 +41,113 @@ nodes:
 
   manager:
     - name: wazuh.manager
-      dns: "wazuh.manager"
+      ip:
+        - "<DOCKER_HOST_ADDRESS>"
+        - "127.0.0.1"
+      dns:
+        - "wazuh.manager"
+        - "<DOCKER_HOST_DNS_NAME>"
 
   dashboard:
     - name: wazuh.dashboard
       dns: "wazuh.dashboard"
-EOF
 ```
 
-Download the Wazuh 5.0.0-beta5 certificate tool:
+Generate and place all certificates:
 
 ```bash
-curl -o wazuh-certs-tool.sh https://packages-staging.xdrsiem.wazuh.info/pre-release/5.x/installation-assistant/wazuh-certs-tool-5.0.0-beta5.sh
+sudo bash ../tools/utils/deployment/certificates-conf.sh --cert --copy --priv
 ```
 
-The downloaded tool is ignored by Git, so it does not block future pulls.
+This must produce both
+`config/wazuh_manager/certs/wazuh.manager-remoted.pem` and its key. RC1 mounts
+them as `etc/certs/remoted.pem` and `remoted-key.pem`; the Manager fails closed
+if either is absent. Additional agent-facing names can be issued with repeated
+`--agent-san <address>` options. The loopback SAN above is required by this
+repository's same-host syslog collector procedure.
 
-Generate and place the certificates:
+## Create deployment credentials
 
 ```bash
-bash ../tools/utils/deployment/certificates-conf.sh --cert --copy --priv
+sudo bash ../tools/utils/deployment/credentials-conf.sh
 ```
+
+The script creates permission-restricted, ignored files:
+
+```text
+config/credentials/indexer.env
+config/credentials/manager.env
+config/credentials/dashboard.env
+```
+
+Each container receives only its own file as the `wazuh-credentials` Compose
+secret. Keep these files and back them up securely. Do not rerun the script
+with `--force` after a deployment has started: changing the files does not
+change credentials already stored in component volumes.
+
+## Start and verify
+
+Validate the merged Compose model, then start it:
+
+```bash
+docker compose --env-file .env.staging \
+  -f docker-compose.yml -f compose.staging.yml config --quiet
+docker compose --env-file .env.staging \
+  -f docker-compose.yml -f compose.staging.yml up -d
+docker compose --env-file .env.staging \
+  -f docker-compose.yml -f compose.staging.yml ps
+```
+
+Log in at `https://<DOCKER_HOST_ADDRESS>` as `admin`. Read the generated
+password without copying it into a tracked file:
+
+```bash
+grep '^WAZUH_INDEXER_ADMIN_PASSWORD=' \
+  config/credentials/indexer.env | cut -d= -f2-
+```
+
+Use the RC1 `/password-tool.sh` inside the Indexer or Manager to rotate a
+password after first startup; follow the commands it prints to update every
+consumer. Editing `config/credentials/*.env` alone has no effect after the
+credential has been persisted.
 
 ## Provision agent groups
 
-Enrollment group directories are bind-mounted into the Manager at boot. The
-tracked baseline currently contains:
-
-```text
-tracked-config/wazuh-manager/shared/windows/agent.conf
-tracked-config/wazuh-manager/shared/linux/agent.conf
-tracked-config/wazuh-manager/shared/syslog/agent.conf
-```
-
-The Windows and Linux files may remain empty until group-specific settings are
-required. The `syslog` group monitors `/var/log/remote/*.log` on the Debian
-collector. Because these files are tracked, later changes reach every deployment
-through the normal repository update procedure.
-
-Wazuh validates an enrollment group by checking for its shared directory under
-`/var/wazuh-manager/etc/shared/`. Enrollment is rejected as `Invalid group` if
-that directory does not exist.
-
-After startup, verify the available groups:
+The host-local Compose override mounts the tracked group configuration into
+the Manager. It currently provides `windows`, `linux`, and `syslog`; the latter
+monitors `/var/log/remote/*.log`.
 
 ```bash
 docker exec single-node-wazuh.manager \
   /var/wazuh-manager/bin/agent_groups -l
 ```
 
-## Perform the first deployment
+Enrollment into a group that is not listed is rejected. Recreate the Manager
+after changing tracked group configuration.
 
-Start the stack with the stock reserved-user passwords:
+## Network exposure
 
-```bash
-docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d
-```
-
-Keep the dashboard port restricted during bootstrap because the stock
-credentials are still active.
-
-Wait for the containers to become healthy:
-
-```bash
-docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml ps
-```
-
-The first startup can take a minute or two while the indexer and dashboard
-initialize. Temporary dashboard connection errors for the indexer on port
-`9200` are expected until the indexer is ready.
-
-## Change reserved indexer passwords
-
-Reserved users such as `admin`, `wazuh-manager`, and `kibanaserver` cannot be
-changed from the dashboard UI. After the first deployment is healthy, export
-the running beta 5 security configuration, modify only the required hashes, and
-apply its `internal_users.yml` with OpenSearch Security's `securityadmin.sh`.
-
-Do not start from an older release's `internal_users.yml`: applying an incomplete
-file can remove beta 5 service and RBAC identities. Export the complete live
-configuration into the ignored local directory:
-
-```bash
-install -d -m 0700 config-local/opensearch-security
-
-docker exec single-node-wazuh.indexer \
-  mkdir -p /tmp/opensearch-security-backup
-
-docker exec -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
-  single-node-wazuh.indexer \
-  /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh \
-  -backup /tmp/opensearch-security-backup \
-  -icl \
-  -nhnv \
-  -cacert /usr/share/wazuh-indexer/config/certs/root-ca.pem \
-  -cert /usr/share/wazuh-indexer/config/certs/admin.pem \
-  -key /usr/share/wazuh-indexer/config/certs/admin-key.pem \
-  -h localhost \
-  -p 9200
-
-docker cp single-node-wazuh.indexer:/tmp/opensearch-security-backup/. \
-  config-local/opensearch-security/
-```
-
-Generate bcrypt hashes for the new passwords:
-
-```bash
-docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
-  --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
-  wazuh/wazuh-indexer:5.0.0-beta5 -p 'NewAdminPass1?'
-
-docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
-  --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
-  wazuh/wazuh-indexer:5.0.0-beta5 -p 'NewManagerPass1?'
-
-docker run --rm -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
-  --entrypoint /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh \
-  wazuh/wazuh-indexer:5.0.0-beta5 -p 'NewKibanaServerPass1?'
-```
-
-Replace only the `hash:` values for `admin`, `wazuh-manager`, and
-`kibanaserver`. Preserve every other beta 5 user and property in the exported
-file:
-
-```bash
-nano config-local/opensearch-security/internal_users.yml
-```
-
-Copy the edited file into the running indexer:
-
-```bash
-docker cp config-local/opensearch-security/internal_users.yml \
-  single-node-wazuh.indexer:/tmp/internal_users.yml
-```
-
-Apply it to the indexer security index:
-
-```bash
-docker exec -e OPENSEARCH_JAVA_HOME=/usr/share/wazuh-indexer/jdk \
-  single-node-wazuh.indexer \
-  /usr/share/wazuh-indexer/plugins/opensearch-security/tools/securityadmin.sh \
-  -f /tmp/internal_users.yml \
-  -t internalusers \
-  -icl \
-  -nhnv \
-  -cacert /usr/share/wazuh-indexer/config/certs/root-ca.pem \
-  -cert /usr/share/wazuh-indexer/config/certs/admin.pem \
-  -key /usr/share/wazuh-indexer/config/certs/admin-key.pem \
-  -h localhost \
-  -p 9200
-```
-
-Update the host-local environment file with the matching plaintext passwords:
-
-```env
-MANAGER_INDEXER_USERNAME=wazuh-manager
-MANAGER_INDEXER_PASSWORD='NewManagerPass1?'
-DASHBOARD_USERNAME=kibanaserver
-DASHBOARD_PASSWORD='NewKibanaServerPass1?'
-```
-
-The `admin` password is not a service environment variable. Store it in the
-deployment's password manager for administrative use.
-
-Recreate the Manager and dashboard so they reconnect with the new credentials:
-
-```bash
-docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml up -d --force-recreate wazuh.manager wazuh.dashboard
-```
-
-Check health again:
-
-```bash
-docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml ps
-```
-
-If the dashboard returns `500 Internal Server Error`, clear the browser's site
-data for the dashboard URL or test in a private window. A stale session from
-the stock credentials can make login fail even when the new credentials are
-correct.
-
-## Verify network exposure
-
-The tracked Compose file publishes the administrative APIs on IPv4 loopback
-only:
+The repository deliberately differs from upstream RC1 here:
 
 ```text
-127.0.0.1:9200  -> Wazuh Indexer API
-127.0.0.1:55000 -> Wazuh Manager API
+127.0.0.1:9200  -> Indexer API
+127.0.0.1:55000 -> Manager API
+1517/tcp        -> Wazuh 5 agent traffic and token enrollment
+1514/tcp        -> legacy agent traffic during migration
+1515/tcp        -> legacy enrollment during migration
+443/tcp         -> dashboard
+514             -> host rsyslog, not the Manager container
 ```
 
-The Manager and dashboard do not use these host-published paths to communicate.
-They reach one another over the private Compose network using service names, so
-the loopback bindings do not interrupt event indexing or dashboard operation.
-Host administration such as the retention procedure can continue to use
-`https://localhost:9200`.
-
-The ports that intentionally remain reachable through the host's network
-interfaces are:
-
-```text
-1517/tcp -> Wazuh 5.x agent HTTPS traffic and enrollment
-1514/tcp -> Wazuh 4.x legacy agent traffic during migration only
-1515/tcp -> Wazuh 4.x legacy enrollment during migration only
-443/tcp  -> dashboard
-514      -> host rsyslog, restricted separately to known senders
-```
-
-The tracked Compose file publishes `1514` and `1515` to support a staged agent
-migration. After every agent uses 5.x HTTPS on `1517`, remove those two
-published ports in the tracked deployment or an intentional override and close
-them at the firewall.
-
-After deploying or updating the stack, verify the effective bindings:
+Verify the effective bindings after every deployment. `9200` and `55000` must
+not be exposed on `0.0.0.0` or `[::]`:
 
 ```bash
-docker compose --env-file .env.staging -f docker-compose.yml -f compose.staging.yml ps
+docker compose --env-file .env.staging \
+  -f docker-compose.yml -f compose.staging.yml ps
 ss -lntp | grep -E ':(443|1514|1515|1517|9200|55000)\b'
 ```
 
-The output for `9200` and `55000` must show `127.0.0.1`, not `0.0.0.0` or
-`[::]`. Also review the host firewall so `443` and `1517` are reachable only
-from the networks that require them. Permit `1514` and `1515` only while 4.x
-agents still need the legacy channel. Do not re-publish either
-administrative API in a host-local Compose override unless a separately
-protected remote-management path is intentionally required.
-
-## Access the dashboard
-
-Open:
-
-```text
-https://<DOCKER_HOST_IP>
-```
-
-A browser warning is expected when self-signed certificates are used.
-
-## Operational rules
-
-- Do not commit real credentials.
-- Keep host-specific changes in ignored files.
-- Docker does not dynamically reload every component configuration. Recreate
-  the affected container after changing its configuration or Compose override.
-- Environment and override files keep secrets and host settings out of Git;
-  they do not replace the Wazuh/OpenSearch password-rotation procedure.
-- Verify the effective credentials before exposing the dashboard.
+Do not use `docker compose down -v` during routine operations. It deletes the
+volumes containing indexed data, API users, keystores, Manager state, and the
+RC1 detection-content store.

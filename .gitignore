@@ -7,9 +7,11 @@ single-node/wazuh-certificates
 single-node/wazuh-certificates/*
 single-node/wazuh-certificates-tool.log
 single-node/wazuh-certs-tool*.sh
+single-node/wazuh-credentials*.sh
 single-node/.env
 single-node/.env.*
 single-node/compose.*.yml
+single-node/docker-compose.override.yml
 single-node/config-local/
 single-node/config*.yml
 single-node/config

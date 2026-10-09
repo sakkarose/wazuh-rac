@@ -2,9 +2,10 @@
 
 ### Added
 
-
 | Issue | Comment |
 | - | - |
+| [#2706](https://github.com/wazuh/wazuh-docker/issues/2706) | Add Wazuh indexer dependencies on builder final stage |
+| [#2619](https://github.com/wazuh/wazuh-docker/issues/2619) | Add CA verification |
 | [#2606](https://github.com/wazuh/wazuh-docker/issues/2606) | Support the unified `WAZUH_MANAGER_ENDPOINT` connection URL in the Wazuh agent, alongside `WAZUH_MANAGER_SERVER` and `WAZUH_MANAGER_PORT` |
 | [#2524](https://github.com/wazuh/wazuh-docker/issues/2524) | Set authd password in agents installation. |
 | [#2505](https://github.com/wazuh/wazuh-docker/pull/2505) | Added bump-issue-link support for Revert Stage Bump. |
@@ -16,9 +17,15 @@
 
 ### Changed
 
-
 | Issue | Comment |
 | - | - |
+| [#2674](https://github.com/wazuh/wazuh-docker/issues/2674) | Adapt Docker images to install-time credential generation |
+| [#2676](https://github.com/wazuh/wazuh-docker/issues/2676) | Replace manual `authd.pass`/`<endpoint>` writing in the agent's `0-wazuh-init` with `WAZUH_ENROLLMENT_TOKEN` support, following wazuh/wazuh#39063 |
+| [#2652](https://github.com/wazuh/wazuh-docker/issues/2652) | Mount the Wazuh manager agent listener certificate, and forward `--agent-san` to the certificate creation tool |
+| [#2635](https://github.com/wazuh/wazuh-docker/issues/2635) | Honour the scheme given in `WAZUH_INDEXER_HOSTS`, and drop the `<ssl>` block from the indexer configuration when it resolves to `http` |
+| [#2621](https://github.com/wazuh/wazuh-docker/pull/2621) | Change cluster key assigment |
+| [#2622](https://github.com/wazuh/wazuh-docker/issues/2622) | Check the Wazuh API accounts of every manager node in `check-default-credentials.sh`, and document the worker step of the multi-node password change |
+| [#6058](https://github.com/wazuh/internal-devel-requests/issues/6058) | Remove the OpenSearch demo users from the indexer image, add `password-tool.sh` to change the indexer and API passwords of a running deployment, and stop publishing the indexer port `9200` |
 | [#2601](https://github.com/wazuh/wazuh-docker/issues/2601) | Regenerate the manager self-signed server certificate per container at first boot |
 | [#2564](https://github.com/wazuh/wazuh-docker/issues/2564) | Add default AI assistant encryption key in the post installation script |
 | [#2581](https://github.com/wazuh/wazuh-docker/issues/2581) | Change Codebuild runners to Github runners |
@@ -75,10 +82,21 @@
 
 ### Fixed
 
-
 | Issue | Comment |
 | - | - |
+| [#2690](https://github.com/wazuh/wazuh-docker/issues/2690) | Unset INDEXER_PASSWORD and DASHBOARD_PASSWORD after keystore write |
+| [#2675](https://github.com/wazuh/wazuh-docker/issues/2675) | Fixed `docker-agent` package generation: seed the `CHANGE_MANAGER_ENDPOINT` placeholder in the Dockerfile itself instead of relying on the installer, which stopped writing it without an enrollment token |
+| [#2628](https://github.com/wazuh/wazuh-docker/issues/2628) | Persist the Wazuh manager `data` directory on a named volume in the single-node and multi-node deployments, so the deployed detection content survives recreating the container, and refresh the content the image owns from the image on every start |
+| [#2629](https://github.com/wazuh/wazuh-docker/issues/2629) | Append `opensearch_security.cookie.ttl` when missing from `opensearch_dashboards.yml` instead of silently discarding `OPENSEARCH_SECURITY_COOKIE_TTL`; removed the `PATTERN`, `CHECKS_*`, `APP_TIMEOUT`, `API_SELECTOR`, `IP_SELECTOR`, `IP_IGNORE` and `WAZUH_MONITORING_*` environment variables, which no longer correspond to any setting the dashboard plugin accepts |
+| [#2638](https://github.com/wazuh/wazuh-docker/issues/2638) | Fixed manager/dashboard environment variable attribution and documented missing manager variables |
+| [#2631](https://github.com/wazuh/wazuh-docker/issues/2631) | Escape special sed replacement characters so passwords and keys with &, \, or the delimiter are no longer corrupted or silently discarded |
+| [#2632](https://github.com/wazuh/wazuh-docker/issues/2632) | Fix agent re creation and re-enrollment |
+| [#2626](https://github.com/wazuh/wazuh-docker/issues/2626) | Supervise the manager daemons from the entrypoint and exit if a critical one dies, so `restart: always` can bring the container back instead of it staying up indefinitely with a dead API |
+| [#2634](https://github.com/wazuh/wazuh-docker/issues/2634) | Default WAZUH_CLUSTER_BIND_ADDR to 0.0.0.0 so the published manager image actually starts |
+| [#2630](https://github.com/wazuh/wazuh-docker/issues/2630) | Fixed WAZUH_INDEXER_HOSTS parsing: hosts without an explicit port, URLs with a scheme, and bracketed IPv6 addresses were silently mangled instead of being parsed correctly, and unparseable values were written to the config without any error |
+| [#2627](https://github.com/wazuh/wazuh-docker/issues/2627) | Fixed manager and dashboard healthchecks to correctly detect failures instead of always reporting healthy |
 | [#2604](https://github.com/wazuh/wazuh-docker/issues/2604) | Adapt Wazuh manager image to new enroll process |
+| [#2594](https://github.com/wazuh/wazuh-docker/issues/2594) | Added `diffutils` to the Wazuh agent image so FIM `report_changes` can generate content diffs |
 | [#2590](https://github.com/wazuh/wazuh-docker/issues/2590) | Restore `WAZUH_MANAGER_PORT` support in the Wazuh agent image and document the enrollment variables removed in 5.0.0 |
 | [#2578](https://github.com/wazuh/wazuh-docker/issues/2578) | Report skipped bumps in the repository bumper workflow |
 | [#2584](https://github.com/wazuh/wazuh-docker/issues/2584) | Adapt certificate deployment to the unified manager certificate layout (root:wazuh-manager 0640, dir 1770) |

@@ -16,7 +16,7 @@ on:
       automation_reference:
         description: 'Branch of wazuh-automation to use'
         required: false
-        default: 'v5.0.0-beta5'
+        default: 'v5.0.0-rc1'
         type: string
       deployment_type:
         description: 'Deployment type to test'
@@ -524,6 +524,15 @@ jobs:
           chmod +x "wazuh-docker/${DEPLOYMENT}/wazuh-certs-tool.sh"
           echo "Downloaded OK"
 
+          # The credentials library credentials-conf.sh generates the passwords
+          # with. It is not among the presigned build_docker artifacts yet, so it
+          # is taken from the installation assistant branch of this version,
+          # which is the file the packages bundle.
+          curl --fail --silent --show-error \
+            --output "wazuh-docker/${DEPLOYMENT}/wazuh-credentials.sh" \
+            "https://raw.githubusercontent.com/wazuh/wazuh-installation-assistant/${{ env.DOCKER_VERSION }}/credentials_lib/wazuh-credentials.sh"
+          echo "Credentials library: $(sha256sum "wazuh-docker/${DEPLOYMENT}/wazuh-credentials.sh" | cut -c1-16)"
+
           # Write config.yml directly into the deployment directory
           if [ "$DEPLOYMENT" = "single-node" ]; then
             printf '%s\n' \
@@ -597,7 +606,8 @@ jobs:
             set -e
             cd /tmp/wazuh-docker/${DEPLOYMENT}
             echo '=== Running certificate generation ==='
-            sudo bash /tmp/wazuh-docker/tools/utils/deployment/certificates-conf.sh --cert --copy --priv
+            sudo bash /tmp/wazuh-docker/tools/utils/deployment/certificates-conf.sh --cert --copy --priv \
+              --agent-san ${{ env.SSH_HOST }}
             echo ''
             echo '=== Generated certificate files ==='
             find ./config -name '*.pem' | sort
@@ -607,6 +617,16 @@ jobs:
               echo -n \"\$pem: \"
               sudo openssl x509 -in \"\$pem\" -noout -subject -issuer 2>/dev/null || echo '(not a cert / key file)'
             done
+          "
+
+      - name: Generate credentials
+        run: |
+          DEPLOYMENT="${{ matrix.deployment_type }}"
+          ssh ${{ env.SSH_OPTS }} "${{ env.REMOTE }}" "
+            set -e
+            cd /tmp/wazuh-docker/${DEPLOYMENT}
+            sudo bash /tmp/wazuh-docker/tools/utils/deployment/credentials-conf.sh
+            ls -la config/credentials
           "
 
       - name: Start Docker Compose
@@ -675,7 +695,7 @@ jobs:
             exit 1
           "
 
-      - name: Verify manager certificates are unique per container
+      - name: Verify the manager agent listener certificates
         run: |
           DEPLOYMENT="${{ matrix.deployment_type }}"
           ssh ${{ env.SSH_OPTS }} "${{ env.REMOTE }}" "
@@ -688,13 +708,17 @@ jobs:
               sudo docker compose exec -T \$SVC ls -ld /var/wazuh-manager/etc/certs
               sudo docker compose exec -T \$SVC ls -la /var/wazuh-manager/etc/certs
               sudo docker compose exec -T \$SVC openssl x509 \
-                -in /var/wazuh-manager/etc/certs/remoted.pem -noout -subject -dates
+                -in /var/wazuh-manager/etc/certs/remoted.pem -noout -subject -dates \
+                -ext subjectAltName,extendedKeyUsage
+              sudo docker compose exec -T \$SVC openssl verify \
+                -CAfile /var/wazuh-manager/etc/certs/root-ca.pem \
+                /var/wazuh-manager/etc/certs/remoted.pem
               sudo docker compose exec -T \$SVC openssl x509 \
                 -in /var/wazuh-manager/etc/certs/remoted.pem -noout -fingerprint \
                 | tee -a /tmp/remoted-fingerprints.txt
             done
 
-            # Every manager node must hold its own self-signed certificate
+            # Every manager node presents an identity of its own
             DUPLICATED=\$(sort /tmp/remoted-fingerprints.txt | uniq -d)
             if [ -n \"\$DUPLICATED\" ]; then
               echo 'ERROR: the same remoted certificate is shared across manager nodes'
@@ -702,6 +726,24 @@ jobs:
               exit 1
             fi
             echo 'OK: each manager node has its own remoted certificate'
+          "
+
+      - name: Verify the agent listener from outside the Compose network
+        run: |
+          DEPLOYMENT="${{ matrix.deployment_type }}"
+          ssh ${{ env.SSH_OPTS }} "${{ env.REMOTE }}" "
+            set -eo pipefail
+            cd /tmp/wazuh-docker/${DEPLOYMENT}
+
+            OUT=\$(echo | sudo openssl s_client -connect localhost:1517 \
+              -CAfile config/root-ca/certs/root-ca.pem \
+              -verify_return_error -verify_hostname ${{ env.SSH_HOST }} 2>&1) || \
+            OUT=\$(echo | sudo openssl s_client -connect localhost:1517 \
+              -CAfile config/root-ca/certs/root-ca.pem \
+              -verify_return_error -verify_ip ${{ env.SSH_HOST }} 2>&1)
+            echo \"\$OUT\" | grep -E 'subject=|Verify return code'
+            echo \"\$OUT\" | grep -q 'Verify return code: 0 (ok)'
+            echo 'OK: the published 1517 listener verifies as ${{ env.SSH_HOST }} against the deployment root CA'
           "
 
       - name: Cluster warm-up wait

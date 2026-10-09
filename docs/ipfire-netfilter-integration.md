@@ -1,4 +1,4 @@
-# IPFire Netfilter integration for Wazuh 5.0.0-beta5
+# IPFire Netfilter integration for Wazuh 5.0.0-rc1
 
 This procedure creates a custom Wazuh 5 integration for IPFire Netfilter drop
 messages collected from `/var/log/remote/*.log`. It uses the Wazuh Dashboard
@@ -279,6 +279,6 @@ edit the Standard space.
 
 ## References
 
-- [Wazuh 5 security analytics detection workflow](https://documentation.wazuh.com/5.0-beta/user-manual/data-analysis/detection-workflow.html)
-- [Wazuh Dashboard security analytics configuration](https://documentation.wazuh.com/5.0-beta/user-manual/wazuh-dashboard/wazuh-dashboard-configurations.html)
+- [Wazuh 5 RC1 Engine reference](https://github.com/wazuh/wazuh/blob/v5.0.0-rc1/docs/ref/modules/engine/README.md)
+- [Wazuh Dashboard documentation](https://documentation.wazuh.com/current/user-manual/wazuh-dashboard/index.html)
 - [Wazuh Content Manager](https://wazuh.github.io/wazuh-indexer-plugins/ref/modules/content-manager/index.html)

@@ -1,12 +1,4 @@
 services:
   wazuh.manager:
-    environment:
-      INDEXER_USERNAME: ${MANAGER_INDEXER_USERNAME:?Set MANAGER_INDEXER_USERNAME}
-      INDEXER_PASSWORD: ${MANAGER_INDEXER_PASSWORD:?Set MANAGER_INDEXER_PASSWORD}
     volumes:
       - ./tracked-config/wazuh-manager:/wazuh-config-mount/etc:ro
-
-  wazuh.dashboard:
-    environment:
-      DASHBOARD_USERNAME: ${DASHBOARD_USERNAME:?Set DASHBOARD_USERNAME}
-      DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD:?Set DASHBOARD_PASSWORD}

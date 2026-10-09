@@ -29,6 +29,7 @@ single-node/config.yml
 single-node/config/
 single-node/config-local/
 single-node/wazuh-certs-tool*.sh
+single-node/wazuh-credentials*.sh
 ```
 
 Because Git ignores these paths, `git pull` neither updates them nor warns when
@@ -58,96 +59,77 @@ install -m 0600 compose.production.yml "$BACKUP_DIR/compose.production.yml"
 
 This local copy does not replace an off-host backup. Back up the persistent
 Docker volumes as required by `backup-and-restore.md` before a Wazuh version
-upgrade. Include `wazuh-dashboard-config`: beta 5 stores the randomly generated
+upgrade. Include `wazuh-dashboard-config`: Wazuh stores the randomly generated
 `wazuh_ai_assistant.encryptionKey` in that volume. Replacing the keystore with a
 new one makes data encrypted with the previous key unreadable.
 
 Do not use `docker compose down -v` during an update or upgrade unless deleting
 the persistent deployment data is explicitly intended.
 
-## Migrate an existing beta 4 Manager to beta 5
+## Migrate an existing beta 5 deployment to RC1
 
-Do not start the beta 5 Manager against an unreviewed beta 4 `wazuh_etc`
-volume. The volume preserves `wazuh-manager.conf`, so changing the image tag
-does not install the beta 5 default configuration over it. In particular, beta
-4 has a flat `<remote>` block, legacy `sslmanager.*` certificate paths, and an
-`ssl_auto_negotiate` option that beta 5 no longer accepts.
+Treat this pre-release transition as a migration, not an image-tag-only
+upgrade. RC1 preserves the named volumes, so a beta 5 `wazuh-manager.conf`, API
+database, Indexer security index, and Dashboard keystore remain in place.
 
-While the beta 4 deployment is still healthy, export the live configuration
-and enrollment state into the permission-restricted backup directory:
+Before stopping beta 5, back up all volumes plus `config/`, and export the live
+Manager configuration. Do not use `down -v`.
 
-```bash
-cd single-node
-install -d -m 0700 config-local/beta4-to-beta5
-docker cp single-node-wazuh.manager:/var/wazuh-manager/etc/wazuh-manager.conf \
-  config-local/beta4-to-beta5/wazuh-manager.conf.beta4
-docker cp single-node-wazuh.manager:/var/wazuh-manager/etc/client.keys \
-  config-local/beta4-to-beta5/client.keys
-docker cp single-node-wazuh.manager:/var/wazuh-manager/etc/authd.pass \
-  config-local/beta4-to-beta5/authd.pass
-cp -a config-local/beta4-to-beta5/wazuh-manager.conf.beta4 \
-  config-local/beta4-to-beta5/wazuh-manager.conf.beta5
+### Prepare certificates and credentials
+
+RC1 does not generate `remoted.pem` at container startup. Reissue the
+deployment certificates with the RC1 certificate tool, listing every address
+agents use as a Manager SAN, and confirm these files exist before startup:
+
+```text
+config/root-ca/certs/root-ca.pem
+config/wazuh_manager/certs/wazuh.manager-remoted.pem
+config/wazuh_manager/certs/wazuh.manager-remoted-key.pem
 ```
 
-Edit only the necessary sections of
-`config-local/beta4-to-beta5/wazuh-manager.conf.beta5`; retain unrelated local
-settings. The beta 5 transport blocks must have this shape:
+RC1 also removes default passwords and environment-based Compose wiring. For a
+beta 5 deployment, create `config/credentials/{indexer,manager,dashboard}.env`
+with values that match the credentials already stored by each component. Do
+not generate unrelated random values for an existing stack. The five required
+keys and their consumers are documented in `setup.md`; after a controlled
+reset or fresh deployment, generate them with `credentials-conf.sh`.
 
-```xml
-<remote>
-  <https>
-    <port>1517</port>
-    <bind_addr>0.0.0.0</bind_addr>
-    <global_prefix>/wazuh-manager/</global_prefix>
-    <certificate>etc/certs/remoted.pem</certificate>
-    <key>etc/certs/remoted-key.pem</key>
-  </https>
+### Reconcile the persisted Manager configuration
 
-  <legacy>
-    <enabled>yes</enabled>
-    <port>1514</port>
-    <protocol>tcp</protocol>
-    <local_ip>0.0.0.0</local_ip>
-  </legacy>
+RC1 validates the complete XML against a closed schema. In the persisted
+`wazuh-manager.conf`:
 
-  <agents>
-    <allow_higher_versions>no</allow_higher_versions>
-  </agents>
-</remote>
-```
+- remove `<global><agents_disconnection_alert_time>`;
+- ensure the mandatory `<cluster>` and `<indexer>` sections exist;
+- add `<ca_certificate>etc/certs/root-ca.pem</ca_certificate>` inside
+  `<remote><https>`;
+- keep `certificate` and `key` pointing to `etc/certs/remoted.pem` and
+  `etc/certs/remoted-key.pem`;
+- remove every other option rejected as unknown rather than retrying startup
+  with validation disabled.
 
-In `<auth>`, remove `ssl_auto_negotiate` and set both certificate paths to the
-same Manager identity:
+If the Manager has custom internal options, rename Manager-side `monitord.*`
+settings to `wazuh_modules.manager_task_*`. Old names do not fail startup; they
+are silently ignored. Agent-side `monitord.*` options are unchanged.
 
-```xml
-<ssl_manager_cert>etc/certs/remoted.pem</ssl_manager_cert>
-<ssl_manager_key>etc/certs/remoted-key.pem</ssl_manager_key>
-```
+The beta 5 development database predates RC1's per-agent `reenroll_secret`
+column, while RC1 still labels the schema as version 1 and has no migration
+step for that beta layout. Do not assume a beta-created `global.db` is
+compatible. Preserve its backup and `client.keys`, but plan a controlled RC1
+Manager-state rebuild and agent re-enrollment if startup reports a missing
+`reenroll_secret` column. Test this on a copy of the volumes before production.
 
-Install the reviewed file into the persistent volume while the beta 4
-container still exists. The running process does not reread it; stop the stack
-immediately afterward so beta 4 is never restarted with the beta 5 file:
+### Reconcile Compose and start
 
-```bash
-docker cp config-local/beta4-to-beta5/wazuh-manager.conf.beta5 \
-  single-node-wazuh.manager:/tmp/wazuh-manager.conf.beta5
-docker exec single-node-wazuh.manager \
-  install -o root -g wazuh-manager -m 0640 \
-  /tmp/wazuh-manager.conf.beta5 \
-  /var/wazuh-manager/etc/wazuh-manager.conf
-docker compose --env-file .env.production \
-  -f docker-compose.yml -f compose.production.yml down
-```
+Use the tracked RC1 Compose file as the base. It adds credential secrets,
+explicit Manager listener certificate mounts, `wazuh_data`, corrected health
+checks, and `discovery.seed_hosts`. Preserve this repository's intentional
+loopback bindings for `9200` and `55000`, and leave container UDP 514 disabled.
 
-Do not delete `wazuh_etc`; it also holds `client.keys`, `authd.pass`, agent group
-configuration, and other state required by existing agents. On the first beta
-5 start, the Manager container generates `etc/certs/remoted.pem` and
-`remoted-key.pem` when neither file exists.
-
-Before starting, verify that the effective Compose configuration publishes
-`1517/tcp` and mounts the Indexer connector certificate at
-`etc/certs/indexer-connector.pem`, not the old `manager.pem` destination. Then
-pull and start the beta 5 images using the commands below.
+Run `docker compose ... config --quiet`, inspect services/images/ports, then
+start RC1 without deleting volumes. Verify the Manager logs first: strict XML,
+missing certificates, missing credential files, and the beta database layout
+all fail early and should be corrected before exposing the dashboard.
 
 ## Deploy a repository update
 
@@ -268,11 +250,12 @@ docker compose --env-file .env.production -f docker-compose.yml -f compose.produ
 docker compose --env-file .env.production -f docker-compose.yml -f compose.production.yml config --images
 ```
 
-The ignored `wazuh-certs-tool.sh` is also version-specific. Download the target
-release's tool when certificates must be generated, but do not overwrite
-working certificates merely because the tool changed. Preserve existing
-certificates when node identities are unchanged unless the target migration
-guide requires regeneration or a key has been compromised.
+The ignored `wazuh-certs-tool.sh` and `wazuh-credentials.sh` are
+version-specific. Download the target release's tools when certificates or a
+fresh deployment's credentials must be generated. Preserve working
+certificates when node identities and validation requirements are unchanged,
+unless the target migration guide requires reissuing them or a key has been
+compromised.
 
 Follow the target release's upstream migration procedure first, reconcile the
 ignored files, and then use the repository convergence and verification steps
