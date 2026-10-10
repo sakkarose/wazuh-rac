@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -eo pipefail
+
 # Path configuration (adjust according to your folder structure)
 CERT_TOOL="./wazuh-certs-tool.sh"
 CONFIG_FILE="./config.yml"

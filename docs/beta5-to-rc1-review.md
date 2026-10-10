@@ -81,3 +81,43 @@ The custom decoder logic, sample fixtures, exported IPFire dashboard, 14-day
 retention policy, and centrally managed `syslog` agent group remain as-is.
 Their dependencies were checked against the RC1 source schema and helpers, and
 no RC1 incompatibility was found.
+
+## Isolated RC1 runtime validation (2026-10-10)
+
+Validated the released `5.0.0-rc1` images with Docker Engine 29.5.2 and
+Compose 5.1.3 on Docker Desktop's Linux backend. The checkout was on `main`;
+its runtime files already targeted RC1. No branch switch was performed.
+
+- All three services became healthy on fresh, project-scoped volumes.
+- The effective Compose model used separate loopback test ports and did not
+  publish UDP 514. The Manager provisioned `default`, `linux`, `syslog`, and
+  `windows` groups.
+- Imported the unchanged shared root, Netfilter, and Suricata decoders through
+  the RC1 Engine `/content/validate/policy` API into its testing session.
+- All seven saved samples passed `/logtest` with both a sender-file location
+  and hostname fallback: 14 positive cases and 384 normalized-field comparisons.
+  Decoder chains, numeric fields, UTC timestamps, named-host handling, empty
+  interfaces, and sender-file IP precedence matched expectations.
+- Three unrelated-event negatives and 13 isolated integration negatives
+  (including cross-source fixtures) passed. All 30 results included successful
+  WCS validation with no errors.
+- The credential generator passed using the library bundled in the released
+  Indexer image. The certificate helper passed Bash syntax validation and now
+  propagates certificate generation failures instead of reporting completion.
+
+Repository corrections: remove the unavailable `agent_control` command from
+the syslog runbook, document all five credential keys and their consumers,
+replace the nonexistent setup security-export reference, and make certificate
+generation and tool downloads report failures.
+
+Limits: the documented package URLs for the certificate tool and credentials
+library returned HTTP 403 from this environment. Disposable test certificates
+were issued with OpenSSL; the published certificate-tool workflow remains
+unverified. Initial content synchronization logged missing indices, and the
+vulnerability feed consumer was still unavailable at the final log check.
+These tests validate fresh bootstrap and Engine decoding, not complete CTI feed
+readiness, Dashboard content promotion, live firewall ingestion, or migration
+of a beta 5 database. The `global.db` migration risk above remains unresolved.
+
+All test assets were kept under `/tmp/wazuh-rc1-review-20261010`. Only the
+isolated project's containers, network, and volumes were used for testing.

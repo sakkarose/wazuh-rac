@@ -221,12 +221,8 @@ correcting the cause; do not restore the beta 5 `authd.pass` mechanism.
 ### Assign an existing agent to the syslog group
 
 If the collector was enrolled without `WAZUH_AGENT_GROUP='syslog'`, identify its
-agent ID in the Dashboard or list connected agents from the Manager:
-
-```bash
-docker exec single-node-wazuh.manager \
-  /var/wazuh-manager/bin/agent_control -lc
-```
+agent ID in the Dashboard's agent list, or through the Manager API's
+`GET /agents` endpoint. The RC1 Manager image does not include `agent_control`.
 
 Append the `syslog` group without replacing any existing group assignments:
 

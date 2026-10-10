@@ -24,9 +24,9 @@ RC1 supplies credentials as Compose secrets.
 Download the RC1-compatible certificate tool and credentials library:
 
 ```bash
-curl -o wazuh-certs-tool.sh \
+curl --fail --show-error --location -o wazuh-certs-tool.sh \
   https://packages.wazuh.com/5.0/wazuh-certs-tool-5.0.0-1.sh
-curl -o wazuh-credentials.sh \
+curl --fail --show-error --location -o wazuh-credentials.sh \
   https://packages.wazuh.com/5.0/wazuh-credentials-5.0.0-1.sh
 ```
 
@@ -84,6 +84,17 @@ Each container receives only its own file as the `wazuh-credentials` Compose
 secret. Keep these files and back them up securely. Do not rerun the script
 with `--force` after a deployment has started: changing the files does not
 change credentials already stored in component volumes.
+
+For an existing deployment, the values in these files must match the stored
+passwords. The required keys and consumers are:
+
+| Key | Credential files |
+| --- | --- |
+| `WAZUH_INDEXER_ADMIN_PASSWORD` | `indexer.env` |
+| `WAZUH_INDEXER_KIBANASERVER_PASSWORD` | `indexer.env`, `dashboard.env` |
+| `WAZUH_INDEXER_MANAGER_PASSWORD` | `indexer.env`, `manager.env` |
+| `WAZUH_MANAGER_API_PASSWORD` | `manager.env` |
+| `WAZUH_MANAGER_WUI_PASSWORD` | `manager.env`, `dashboard.env` |
 
 ## Start and verify
 

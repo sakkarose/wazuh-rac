@@ -36,11 +36,11 @@ Because Git ignores these paths, `git pull` neither updates them nor warns when
 their structure becomes stale. They must be audited against the tracked
 examples after every repository update and backed up before a version upgrade.
 
-Before a version upgrade, refresh the live OpenSearch Security export using the
-procedure in `setup.md`. Treat that export as a rollback reference only. Never
-apply an older release's `internal_users.yml` to a newer Indexer; after an
-upgrade, export the new live configuration first and change only the required
-password hashes.
+Before a version upgrade, back up the live OpenSearch Security configuration
+following the target release's upstream `backup-and-restore.md`. Treat any
+security export as a rollback reference only. Never apply an older release's
+`internal_users.yml` to a newer Indexer. Use RC1's `/password-tool.sh` for
+password rotation and update the credential files for every consumer it names.
 
 Create a permission-restricted backup of the local files. This example uses the
 production filenames; substitute the names used by the host:
